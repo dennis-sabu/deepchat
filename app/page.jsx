@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { assets } from '@/assets/assets';
 import Sidebar from '@/components/Sidebar';
+import PromptBox from '@/components/promptBox';
 
 export default function Home() {
   const [expanded, setExpanded] = useState(false);
@@ -15,7 +16,8 @@ export default function Home() {
         {/* sidebar */}
         <Sidebar expand={expanded} setExpand={setExpanded} />
 
-        <div className='flex-1 flex flex-col items-center justify-center px-4 pb-8 bg-[#292a2d] text-white relative'>
+        <div className='flex-1 flex flex-col px-4 pb-8 bg-[#292a2d] text-white relative'>
+          {/* Top mobile menu */}
           <div className='md:hidden absolute px-4 top-6 flex items-center justify-between w-full'>
             <Image
               onClick={() => (expanded ? setExpanded(false) : setExpanded(true))}
@@ -30,31 +32,37 @@ export default function Home() {
             />
           </div>
 
+          {/* Center content */}
           {messages.length === 0 ? (
             <>
-              <div className='h-screen flex flex-col items-center justify-center text-center'>
-                <div className='flex items-center justify-center gap-3'>
-                  <Image
-                    src={assets.logo_icon }
-                    alt='No messages'
-                    className='h-16'
-                    width={64}
-                    height={64}
-                  />
-                  <p className='text-2xl font-medium'>Hi I'm DeepChat.</p>
-                </div>
-                <p className='text-sm mt-2 items-center'>How can I assist you today?</p>
+            <div className='flex flex-col items-center justify-center text-center flex-1'>
+              <div className='flex items-center justify-center gap-3 mb-2'>
+                <Image
+                  src={assets.logo_icon}
+                  alt='No messages'
+                  className='h-16'
+                  width={64}
+                  height={64}
+                />
+                <p className='text-2xl font-medium'>Hi I'm DeepChat.</p>
               </div>
+              <p className='text-sm mb-6'>How can I assist you today?</p>
+
+              {/* PromptBox below greeting */}
+              <div className="w-full max-w-2xl px-4">
+                <PromptBox isLoading={isLoading} setIsLoading={setIsLoading} />
+              </div>
+            </div>
             </>
           ) : (
             <div>
-              {/* Render messages here */}
+              <Message role='user' content='what is next js?' />
             </div>
           )}
-
+          
           {/* Footer note */}
           <p className='text-xs text-gray-500 absolute bottom-1 left-1/2 transform -translate-x-1/2'>
-            AI-generated, for reference only — made by
+            made by
             <a
               href='https://dennis-sabu-portfolio.vercel.app/'
               target='_blank'
