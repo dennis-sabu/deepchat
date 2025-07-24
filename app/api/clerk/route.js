@@ -5,13 +5,9 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
-  const secret = process.env.CLERK_SECRET_KEY;
+ const wh = new webhook(process.env.SIGNING_SECRET)
 
-  if (!secret) {
-    return NextResponse.json({ error: "CLERK_SECRET_KEY not set" }, { status: 500 });
-  }
-
-  const headerPayload = headers();
+  const headerPayload = await headers();
 
   const svixHeaders = {
     "svix-id": headerPayload.get("svix-id"),
@@ -19,28 +15,16 @@ export async function POST(req) {
     "svix-timestamp": headerPayload.get("svix-timestamp"),
   };
 
-  if (!svixHeaders["svix-id"] || !svixHeaders["svix-signature"] || !svixHeaders["svix-timestamp"]) {
-    return NextResponse.json({ error: "Missing Svix headers" }, { status: 400 });
-  }
-
+  
   const payload = await req.json();
   const body = JSON.stringify(payload);
+  const {data, type} = wh.verify(body, svixHeaders);
 
-  let evt;
-  try {
-    const wh = new Webhook(secret);
-    evt = wh.verify(body, svixHeaders);
-  } catch (err) {
-    console.error("Webhook verification failed:", err);
-    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
-  }
-
-  const { data, type } = evt;
 
   const userData = {
     _id: data.id,
-    email: data.email_addresses?.[0]?.email_address || "",
-    name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
+    email: data.email_addresses[0].email_address,
+    name: `${data.first_name} ${data.last_name }`,
     image: data.image_url,
   };
 
