@@ -2,10 +2,15 @@ import { Webhook } from "svix";
 import connectDB from "@/config/db";
 import User from "@/models/User";
 import { headers } from "next/headers";
-import { NextResponse } from "next/server"; // Don't forget this!
+import { NextResponse } from "next/server";
 
 export async function POST(req) {
-  const wh = new Webhook(process.env.CLERK_SECRET_KEY);
+  const secret = process.env.CLERK_SECRET_KEY;
+
+  if (!secret) {
+    return NextResponse.json({ error: "CLERK_SECRET_KEY not set" }, { status: 500 });
+  }
+
   const headerPayload = headers();
 
   const svixHeaders = {
@@ -14,10 +19,22 @@ export async function POST(req) {
     "svix-timestamp": headerPayload.get("svix-timestamp"),
   };
 
+  if (!svixHeaders["svix-id"] || !svixHeaders["svix-signature"] || !svixHeaders["svix-timestamp"]) {
+    return NextResponse.json({ error: "Missing Svix headers" }, { status: 400 });
+  }
+
   const payload = await req.json();
   const body = JSON.stringify(payload);
 
-  const evt = wh.verify(body, svixHeaders);
+  let evt;
+  try {
+    const wh = new Webhook(secret);
+    evt = wh.verify(body, svixHeaders);
+  } catch (err) {
+    console.error("Webhook verification failed:", err);
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
+  }
+
   const { data, type } = evt;
 
   const userData = {
