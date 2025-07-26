@@ -48,18 +48,18 @@ export default function Home() {
               </div>
               <p className='text-sm mb-6'>How can I assist you today?</p>
 
-              {/* PromptBox below greeting */}
-              <div className="w-full max-w-2xl px-4">
-                <PromptBox isLoading={isLoading} setIsLoading={setIsLoading} />
-              </div>
-            </div>
+             </div>
+             
             </>
           ) : (
             <div>
               <Message role='user' content='what is next js?' />
             </div>
           )}
-          
+           <div className='items-center justify-center flex-1 flex flex-col'>
+                <PromptBox isLoading={isLoading} setIsLoading={setIsLoading} />
+              </div>
+           
           {/* Footer note */}
           <p className='text-xs text-gray-500 absolute bottom-1 left-1/2 transform -translate-x-1/2'>
             made by

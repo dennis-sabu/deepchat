@@ -1,28 +1,28 @@
-import { Inter } from "next/font/google";
-import "./globals.css";
+"'use client';"
+import './globals.css';
+import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
-import { AppContextProvider } from "@/context/AppContext";
+import { AppContextProvider } from '@/context/AppContext';
+import { Toaster } from 'react-hot-toast';
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata = {
-  title: "DeepChat",
-  description: "A powerful AI chat application",
+  title: 'DeepChat',
+  description: 'A powerful AI chat application',
 };
 
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
-      <AppContextProvider>
-        <html lang="en">
-          <body className={`${inter.className} antialiased`}>
+    <html lang="en">
+      <body className={inter.className}>
+        <ClerkProvider>
+          <AppContextProvider>
             {children}
-          </body>
-        </html>
-      </AppContextProvider>
-    </ClerkProvider>
+            <Toaster />
+          </AppContextProvider>
+        </ClerkProvider>
+      </body>
+    </html>
   );
 }
