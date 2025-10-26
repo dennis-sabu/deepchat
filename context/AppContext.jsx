@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { useUser, useAuth } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
@@ -12,23 +12,13 @@ export const UseAppContext = () => {
 
 export const AppContextProvider = ({ children }) => {
   const { user } = useUser();
-  const { getToken } = useAuth();
 
   const [chats, setChats] = useState([]);
-  const [selectedChat, setSelectedChat] = useState({ messages: [] }); // set a safe default
+  const [selectedChat, setSelectedChat] = useState(null);
 
   const createNewChat = async () => {
     try {
-      const token = await getToken();
-      if (!token) return toast.error("No token found");
-
-      const { data } = await axios.post(
-        '/api/chat/create',
-        {},
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const { data } = await axios.post('/api/chat/create');
 
       if (data.success && data.data) {
         return data.data;
@@ -37,32 +27,31 @@ export const AppContextProvider = ({ children }) => {
         return null;
       }
     } catch (error) {
-      toast.error(error?.response?.data?.message || error.message);
+      console.error('Create chat error:', error);
+      toast.error(error?.response?.data?.message || "Failed to create chat");
       return null;
     }
   };
 
   const fetchUserChats = async () => {
     try {
-      const token = await getToken();
-      if (!token) return toast.error("No token found");
-
-      const { data } = await axios.get('/api/chat/get', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { data } = await axios.get('/api/chat/get');
 
       let chatList = data?.data || [];
 
-      if (chatList.length === 0) {
-        const newChat = await createNewChat();
-        if (newChat) chatList = [newChat];
+      // Don't auto-create chat - let user start conversation naturally
+      // Only set existing chats
+      if (chatList.length > 0) {
+        chatList.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        setChats(chatList);
+        setSelectedChat(chatList[0]);
+      } else {
+        setChats([]);
+        setSelectedChat(null);
       }
-
-      chatList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setChats(chatList);
-      setSelectedChat(chatList[0] || { messages: [] }); // ensure messages is always defined
     } catch (error) {
-      toast.error(error?.response?.data?.message || error.message);
+      console.error('Fetch chats error:', error);
+      // Don't show error toast for initial load
     }
   };
 

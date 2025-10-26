@@ -1,22 +1,52 @@
-import mongoose, { Schema, model, models } from 'mongoose';
+// @/models/Chat.js
+import mongoose from 'mongoose';
 
-const ChatSchema = new Schema(
-  {
-   
-    name: { type: String, required: true },
-   messages: [
-    {
-      role: { type: String, required: true }, // 'user' or 'assistant'
-      content: { type: String, required: true },
-      timestamps: { type: Number, required: true } // Automatically set the timestamp
-    }
-   ],
-   UserId: { type: String, required: true }, // Reference to the User model
+const MessageSchema = new mongoose.Schema({
+  role: {
+    type: String,
+    enum: ['user', 'assistant'],
+    required: true,
   },
-  { timestamps: true }
-);
+  content: {
+    type: String,
+    required: true,
+  },
+  image: {
+    type: String,
+    required: false,
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+  }
+});
 
-// Use `models.Chat` if it exists (to prevent overwrite errors in dev)
-const Chat = mongoose.model.Chat || mongoose.model("Chat", ChatSchema);
+const ChatSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    required: true,
+    index: true,
+  },
+  name: {
+    type: String,
+    default: "New Chat",
+    trim: true,
+  },
+  messages: [MessageSchema],
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  }
+});
 
-export default Chat;
+// Update the updatedAt field before saving
+ChatSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+export default mongoose.models.Chat || mongoose.model('Chat', ChatSchema);

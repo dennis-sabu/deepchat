@@ -1,4 +1,4 @@
-"'use client';"
+'use client';
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
@@ -7,22 +7,17 @@ import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
-export const metadata = {
-  title: 'DeepChat',
-  description: 'A powerful AI chat application',
-};
-
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <ClerkProvider>
+    <ClerkProvider>
+      <html lang="en">
+        <body className={inter.className}>
           <AppContextProvider>
             {children}
-            <Toaster />
+            <Toaster position="top-center" />
           </AppContextProvider>
-        </ClerkProvider>
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
