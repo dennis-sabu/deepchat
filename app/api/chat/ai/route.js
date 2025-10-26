@@ -3,6 +3,7 @@ export const maxDuration = 60;
 
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
+import User from "@/models/User";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -41,6 +42,51 @@ export async function POST(req) {
     const data = await Chat.findOne({ userId, _id: chatId });
     if (!data) {
       return NextResponse.json({ success: false, message: "Chat not found" });
+    }
+
+    // Get or create user record to track limit reset time
+    const authResult = await auth();
+    let user = await User.findById(userId);
+    if (!user) {
+      user = await User.create({
+        _id: userId,
+        name: authResult.sessionClaims?.name || 'User',
+        email: authResult.sessionClaims?.email || '',
+        limitResetTime: new Date()
+      });
+    }
+
+    // Check if 8 hours have passed since last reset
+    const now = new Date();
+    const eightHoursInMs = 8 * 60 * 60 * 1000;
+    const timeSinceReset = now - new Date(user.limitResetTime);
+
+    // If 8 hours have passed, reset by deleting all old messages and updating reset time
+    if (timeSinceReset >= eightHoursInMs) {
+      await Chat.updateMany(
+        { userId },
+        { $set: { messages: [] } }
+      );
+      
+      user.limitResetTime = now;
+      await user.save();
+    }
+
+    // Check if user has reached the 20 response limit in current 8-hour window
+    const allUserChats = await Chat.find({ userId });
+    const totalAiMessages = allUserChats.reduce((count, c) => {
+      return count + c.messages.filter(msg => msg.role === 'assistant').length;
+    }, 0);
+    
+    if (totalAiMessages >= 20) {
+      const timeUntilReset = eightHoursInMs - timeSinceReset;
+      const hoursRemaining = Math.floor(timeUntilReset / (60 * 60 * 1000));
+      const minutesRemaining = Math.floor((timeUntilReset % (60 * 60 * 1000)) / (60 * 1000));
+      
+      return NextResponse.json({ 
+        success: false, 
+        message: `Account limit reached. You've used all 20 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.` 
+      }, { status: 403 });
     }
 
     const trimmedPrompt = prompt.trim();
