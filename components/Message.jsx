@@ -80,7 +80,7 @@ const Message = ({role, content, image, isLoading}) => {
                 />
                 <div className='space-y-2 w-full overflow-hidden'>
                   {isLoading ? (
-                    <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-2 py-3'>
                       <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce'></div>
                       <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce' style={{animationDelay: '0.2s'}}></div>
                       <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce' style={{animationDelay: '0.4s'}}></div>

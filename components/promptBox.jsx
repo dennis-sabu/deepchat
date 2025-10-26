@@ -12,6 +12,7 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
   const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = UseAppContext();
+  const abortControllerRef = useRef(null);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -119,11 +120,15 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       // Clear image after sending
       removeImage();
 
-      // Send to API
+      // Prepare abort controller so user can stop the request
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      // Send to API (attach abort signal)
       const { data } = await axios.post(`/api/chat/${currentChat._id}`, {
         message: prompt.trim(),
         image: imagePreview,
-      });
+      }, { signal: controller.signal });
 
       if (data.success) {
         const aiMessage = {
@@ -179,8 +184,13 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       }
     } catch (error) {
       console.error('Send prompt error:', error);
-      
-      if (error.response?.status === 401) {
+      // If the request was cancelled by user, show a simple stopped message and don't spam toasts
+      if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
+        // Show stopped assistant message
+        const stoppedMsg = { role: 'assistant', content: 'Stopped by user.', timestamp: Date.now() };
+        setSelectedChat((prev) => ({ ...prev, messages: [...(prev.messages || []), stoppedMsg] }));
+        setChats((prevChats) => prevChats.map((chat) => chat._id === currentChat._id ? { ...chat, messages: [...(chat.messages || []), stoppedMsg] } : chat));
+      } else if (error.response?.status === 401) {
         toast.error('Please log in to send messages');
       } else if (error.response?.data?.message) {
         toast.error(error.response.data.message);
@@ -194,6 +204,25 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleStop = async () => {
+    // Abort in-flight request and notify server
+    try {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Optionally notify server to stop (best-effort, no await to avoid blocking)
+      if (selectedChat?._id) {
+        axios.post(`/api/chat/${selectedChat._id}`, { stop: true }).catch(() => {});
+      }
+
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Stop error', err);
     }
   };
 
@@ -255,18 +284,29 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
             </label>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={isLoading || (!prompt.trim() && !selectedImage)}
-              className={`${(prompt.trim() || selectedImage) && !isLoading ? 'bg-primary' : 'bg-[#71717a]'} rounded-full p-2 cursor-pointer disabled:cursor-not-allowed`}
-            >
-              <Image
-                style={{ height: 'auto' }}
-                className="w-3.5 aspect-square"
-                src={(prompt.trim() || selectedImage) && !isLoading ? assets.arrow_icon : assets.arrow_icon_dull}
-                alt="Send"
-              />
-            </button>
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                className="bg-white hover:bg-gray-200 rounded-full p-2 cursor-pointer transition"
+                title="Stop generating"
+              >
+                <div className="w-3.5 h-3.5 bg-black rounded-sm"></div>
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={isLoading || (!prompt.trim() && !selectedImage)}
+                className={`${(prompt.trim() || selectedImage) && !isLoading ? 'bg-primary' : 'bg-[#71717a]'} rounded-full p-2 cursor-pointer disabled:cursor-not-allowed`}
+              >
+                <Image
+                  style={{ height: 'auto' }}
+                  className="w-3.5 aspect-square"
+                  src={(prompt.trim() || selectedImage) && !isLoading ? assets.arrow_icon : assets.arrow_icon_dull}
+                  alt="Send"
+                />
+              </button>
+            )}
           </div>
         </div>
       </div>

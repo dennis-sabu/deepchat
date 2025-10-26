@@ -20,7 +20,13 @@ export async function POST(request, context) {
 
     const { chatId } = await context.params;
     console.log("POST [chatId] - chatId:", chatId, "userId:", userId);
-    const { message, image } = await request.json();
+    const body = await request.json();
+    const { message, image, stop } = body;
+
+    // If frontend sends a stop flag (or user typed 'stop'), immediately stop and return
+    if (stop === true || (typeof message === 'string' && message.trim().toLowerCase() === 'stop')) {
+      return NextResponse.json({ success: true, message: 'Stopped by user.' });
+    }
 
     if (!message || !message.trim()) {
       return NextResponse.json(
@@ -48,21 +54,32 @@ export async function POST(request, context) {
       );
     }
 
+    // Detect simple echo/repeat commands: if user says "repeat X" or "echo X", just return X
+    const trimmedMessage = message.trim();
+    const echoMatch = trimmedMessage.match(/^(?:repeat|echo|say exactly)[:\s]+(.+)/i);
+    if (echoMatch) {
+      const echoed = echoMatch[1].trim();
+      const userMessage = { role: 'user', content: trimmedMessage, image: image || null, timestamp: new Date() };
+      const aiEcho = { role: 'assistant', content: echoed, timestamp: new Date() };
+      chat.messages.push(userMessage);
+      chat.messages.push(aiEcho);
+      chat.updatedAt = new Date();
+      await chat.save();
+      return NextResponse.json({ success: true, message: echoed, chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt } });
+    }
+
     // Add user message to chat
     const userMessage = {
       role: 'user',
-      content: message.trim(),
+      content: trimmedMessage,
       image: image || null,
       timestamp: new Date()
     };
-    
     chat.messages.push(userMessage);
 
-    // Build conversation history for Gemini
-    const contents = chat.messages.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }));
+    // Build a short conversation history (last 6 messages) for brevity
+    const recent = chat.messages.slice(-6);
+    const contents = recent.map(msg => ({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] }));
 
     // Call Gemini API directly
     const response = await fetch(
@@ -76,8 +93,9 @@ export async function POST(request, context) {
         body: JSON.stringify({
           contents: contents,
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2000,
+            // Keep replies short by default. Increase only when user asks for more.
+            temperature: 0.2,
+            maxOutputTokens: 60,
           }
         }),
       }

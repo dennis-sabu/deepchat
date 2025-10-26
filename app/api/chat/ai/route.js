@@ -26,7 +26,11 @@ export async function POST(req) {
       });
     }
 
-    const { chatId, prompt } = await req.json();
+    const body = await req.json();
+    const { chatId, prompt, stop } = body;
+    if (stop === true || (typeof prompt === 'string' && prompt.trim().toLowerCase() === 'stop')) {
+      return NextResponse.json({ success: true, message: 'Stopped by user.' });
+    }
     if (!chatId || !prompt) {
       return NextResponse.json({ success: false, message: "Missing chatId or prompt" });
     }
@@ -39,10 +43,24 @@ export async function POST(req) {
       return NextResponse.json({ success: false, message: "Chat not found" });
     }
 
+    const trimmedPrompt = prompt.trim();
+
+    // Detect simple echo/repeat command
+    const echoMatch = trimmedPrompt.match(/^(?:repeat|echo|say exactly)[:\s]+(.+)/i);
+    if (echoMatch) {
+      const echoed = echoMatch[1].trim();
+      const userPromptObj = { role: 'user', content: trimmedPrompt, timestamp: Date.now() };
+      const aiEcho = { role: 'assistant', content: echoed, timestamp: Date.now() };
+      data.messages.push(userPromptObj);
+      data.messages.push(aiEcho);
+      await data.save();
+      return NextResponse.json({ success: true, data: aiEcho });
+    }
+
     // Add user prompt
     const userPrompt = {
       role: "user",
-      content: prompt,
+      content: trimmedPrompt,
       timestamp: Date.now(),
     };
     data.messages.push(userPrompt);
@@ -52,23 +70,21 @@ export async function POST(req) {
     // Initialize the model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-    // Build chat history for Gemini
-    const chatHistory = data.messages.slice(0, -1).map(msg => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }],
-    }));
+    // Build a short chat history (send recent messages only) for concise replies
+    const recent = data.messages.slice(-6);
+    const chatHistory = recent.slice(0, -1).map(msg => ({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] }));
 
-    // Start chat with history
+    // Start chat with constrained generation to keep replies short
     const chat = model.startChat({
       history: chatHistory,
       generationConfig: {
-        maxOutputTokens: 1000,
-        temperature: 0.7,
+        maxOutputTokens: 60,
+        temperature: 0.2,
       },
     });
 
-    // Get AI response
-    const result = await chat.sendMessage(prompt);
+    // Get AI response (short by config)
+    const result = await chat.sendMessage(trimmedPrompt);
     const response = await result.response;
     const aiMessage = {
       role: "assistant",
