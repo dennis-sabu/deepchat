@@ -180,6 +180,27 @@ export async function POST(request, context) {
       });
     }
 
+    // Check if user is asking about the AI's name
+    const nameKeywords = ['your name', 'what are you called', 'who are you', 'what is your name', 'introduce yourself', "what's your name"];
+    const isNameQuestion = nameKeywords.some(keyword => trimmedMessage.toLowerCase().includes(keyword));
+    
+    if (isNameQuestion) {
+      const nameResponse = "I'm DeepChat AI! 🚀\n\n✨ *Your intelligent conversation companion*\n\nI'm here to help you with anything you need - from answering questions and solving problems to having engaging conversations. Powered by advanced AI technology and built by Dennis Sabu, I'm designed to provide accurate, helpful, and thoughtful responses.\n\n💡 **What I can do:**\n- Answer questions on any topic\n- Help with coding and technical problems\n- Engage in creative conversations\n- Assist with learning and research\n- And much more!\n\nLet's chat! What can I help you with today? 😊";
+      
+      const userMessage = { role: 'user', content: trimmedMessage, image: image || null, timestamp: new Date() };
+      const aiMessage = { role: 'assistant', content: nameResponse, timestamp: new Date() };
+      chat.messages.push(userMessage);
+      chat.messages.push(aiMessage);
+      chat.updatedAt = new Date();
+      await chat.save();
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: nameResponse, 
+        chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt } 
+      });
+    }
+
     // Add user message to chat
     const userMessage = {
       role: 'user',
@@ -205,9 +226,8 @@ export async function POST(request, context) {
         body: JSON.stringify({
           contents: contents,
           generationConfig: {
-            // Keep replies short by default. Increase only when user asks for more.
-            temperature: 0.2,
-            maxOutputTokens: 60,
+            temperature: 0.7,
+            maxOutputTokens: 8192,
           }
         }),
       }

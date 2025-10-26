@@ -155,6 +155,21 @@ export async function POST(req) {
       return NextResponse.json({ success: true, data: aiDennis });
     }
 
+    // Check if user is asking about the AI's name
+    const nameKeywords = ['your name', 'what are you called', 'who are you', 'what is your name', 'introduce yourself', "what's your name"];
+    const isNameQuestion = nameKeywords.some(keyword => trimmedPrompt.toLowerCase().includes(keyword));
+    
+    if (isNameQuestion) {
+      const nameResponse = "I'm DeepChat AI! 🚀\n\n✨ *Your intelligent conversation companion*\n\nI'm here to help you with anything you need - from answering questions and solving problems to having engaging conversations. Powered by advanced AI technology and built by Dennis Sabu, I'm designed to provide accurate, helpful, and thoughtful responses.\n\n💡 **What I can do:**\n- Answer questions on any topic\n- Help with coding and technical problems\n- Engage in creative conversations\n- Assist with learning and research\n- And much more!\n\nLet's chat! What can I help you with today? 😊";
+      
+      const userPromptObj = { role: 'user', content: trimmedPrompt, timestamp: Date.now() };
+      const aiName = { role: 'assistant', content: nameResponse, timestamp: Date.now() };
+      data.messages.push(userPromptObj);
+      data.messages.push(aiName);
+      await data.save();
+      return NextResponse.json({ success: true, data: aiName });
+    }
+
     // Add user prompt
     const userPrompt = {
       role: "user",
@@ -176,8 +191,8 @@ export async function POST(req) {
     const chat = model.startChat({
       history: chatHistory,
       generationConfig: {
-        maxOutputTokens: 60,
-        temperature: 0.2,
+        maxOutputTokens: 8192,
+        temperature: 0.7,
       },
     });
 
