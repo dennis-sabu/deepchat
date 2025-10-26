@@ -50,10 +50,49 @@ export async function POST(req) {
     if (!user) {
       user = await User.create({
         _id: userId,
-        name: authResult.sessionClaims?.name || 'User',
-        email: authResult.sessionClaims?.email || '',
-        limitResetTime: new Date()
+        name: authResult.sessionClaims?.name || authResult.sessionClaims?.firstName || 'User',
+        email: authResult.sessionClaims?.email || authResult.sessionClaims?.emailAddress || undefined,
+        limitResetTime: new Date(),
+        warnings: 0,
+        bannedUntil: null
       });
+    }
+
+    // Check if user is banned
+    if (user.bannedUntil && new Date() < new Date(user.bannedUntil)) {
+      const timeRemaining = new Date(user.bannedUntil) - new Date();
+      const hoursLeft = Math.floor(timeRemaining / (60 * 60 * 1000));
+      const minutesLeft = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+      return NextResponse.json(
+        { success: false, message: `Your account is banned for inappropriate language. Ban expires in ${hoursLeft}h ${minutesLeft}m.` },
+        { status: 403 }
+      );
+    }
+
+    const trimmedPrompt = prompt.trim();
+
+    // Check for bad words
+    const badWords = ['fuck', 'shit', 'bitch', 'asshole', 'damn', 'bastard', 'crap', 'dick', 'pussy', 'cock', 'slut', 'whore'];
+    const hasBadWord = badWords.some(word => trimmedPrompt.toLowerCase().includes(word));
+    
+    if (hasBadWord) {
+      user.warnings = (user.warnings || 0) + 1;
+      
+      if (user.warnings >= 2) {
+        user.bannedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        user.warnings = 0;
+        await user.save();
+        return NextResponse.json(
+          { success: false, message: '⚠️ You have been banned for 24 hours due to repeated use of inappropriate language. Please respect our community guidelines.' },
+          { status: 403 }
+        );
+      } else {
+        await user.save();
+        return NextResponse.json(
+          { success: false, message: '⚠️ Warning: Please avoid using inappropriate language. One more violation will result in a 24-hour ban.' },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if 8 hours have passed since last reset
@@ -89,8 +128,6 @@ export async function POST(req) {
       }, { status: 403 });
     }
 
-    const trimmedPrompt = prompt.trim();
-
     // Detect simple echo/repeat command
     const echoMatch = trimmedPrompt.match(/^(?:repeat|echo|say exactly)[:\s]+(.+)/i);
     if (echoMatch) {
@@ -101,6 +138,21 @@ export async function POST(req) {
       data.messages.push(aiEcho);
       await data.save();
       return NextResponse.json({ success: true, data: aiEcho });
+    }
+
+    // Check if user is asking about Dennis/Dennis Sabu
+    const dennisKeywords = ['dennis', 'dennis sabu', 'creator', 'developer', 'owner', 'who made you', 'who created you', 'who built you'];
+    const isDennisQuestion = dennisKeywords.some(keyword => trimmedPrompt.toLowerCase().includes(keyword));
+    
+    if (isDennisQuestion) {
+      const dennisResponse = "I was created by Dennis Sabu! 🌟 He's an incredibly talented full-stack developer and computer expert. Dennis is the mastermind behind this AI chat platform - he designed and built everything from scratch. He's passionate about technology, always learning, and creates amazing projects like this one. Dennis has exceptional skills in web development, AI integration, and software architecture. I'm proud to be one of his creations! 💻✨";
+      
+      const userPromptObj = { role: 'user', content: trimmedPrompt, timestamp: Date.now() };
+      const aiDennis = { role: 'assistant', content: dennisResponse, timestamp: Date.now() };
+      data.messages.push(userPromptObj);
+      data.messages.push(aiDennis);
+      await data.save();
+      return NextResponse.json({ success: true, data: aiDennis });
     }
 
     // Add user prompt
