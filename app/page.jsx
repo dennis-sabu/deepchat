@@ -18,7 +18,22 @@ export default function Home() {
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
-  const { user, selectedChat, sendMessage } = UseAppContext();
+  const { user, selectedChat, sendMessage, createNewChat, setChats, chats, setSelectedChat } = UseAppContext();
+
+  // Create a new chat when user visits the website
+  useEffect(() => {
+    const initializeChat = async () => {
+      if (user && !selectedChat) {
+        const newChat = await createNewChat();
+        if (newChat) {
+          setChats([newChat, ...chats]);
+          setSelectedChat(newChat);
+        }
+      }
+    };
+
+    initializeChat();
+  }, [user]); // Only run when user changes (login/logout)
 
   const scrollToBottom = () => {
     if (!userHasScrolled && messagesContainerRef.current) {
@@ -186,11 +201,13 @@ export default function Home() {
                         if (textarea) {
                           textarea.value = item.text;
                           textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                          // Auto-submit
-                          const form = textarea.closest('form');
-                          if (form) {
-                            form.requestSubmit();
-                          }
+                          // Wait for state update before submitting
+                          setTimeout(() => {
+                            const form = textarea.closest('form');
+                            if (form) {
+                              form.requestSubmit();
+                            }
+                          }, 50);
                         }
                       }}
                       className={`bg-gradient-to-br ${item.color} ${item.glow} border rounded-3xl p-4 cursor-pointer backdrop-blur-md transition-all shadow-sm hover:border-opacity-50`}

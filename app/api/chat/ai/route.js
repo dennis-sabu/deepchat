@@ -111,21 +111,23 @@ export async function POST(req) {
       await user.save();
     }
 
-    // Check if user has reached the 20 response limit in current 8-hour window
-    const allUserChats = await Chat.find({ userId });
-    const totalAiMessages = allUserChats.reduce((count, c) => {
-      return count + c.messages.filter(msg => msg.role === 'assistant').length;
-    }, 0);
-    
-    if (totalAiMessages >= 20) {
-      const timeUntilReset = eightHoursInMs - timeSinceReset;
-      const hoursRemaining = Math.floor(timeUntilReset / (60 * 60 * 1000));
-      const minutesRemaining = Math.floor((timeUntilReset % (60 * 60 * 1000)) / (60 * 1000));
+    // Check if user has reached the 20 response limit (skip if user has unlimited chats)
+    if (!user.hasUnlimitedChats) {
+      const allUserChats = await Chat.find({ userId });
+      const totalAiMessages = allUserChats.reduce((count, c) => {
+        return count + c.messages.filter(msg => msg.role === 'assistant').length;
+      }, 0);
       
-      return NextResponse.json({ 
-        success: false, 
-        message: `Account limit reached. You've used all 20 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.` 
-      }, { status: 403 });
+      if (totalAiMessages >= 20) {
+        const timeUntilReset = eightHoursInMs - timeSinceReset;
+        const hoursRemaining = Math.floor(timeUntilReset / (60 * 60 * 1000));
+        const minutesRemaining = Math.floor((timeUntilReset % (60 * 60 * 1000)) / (60 * 1000));
+        
+        return NextResponse.json({ 
+          success: false, 
+          message: `Account limit reached. You've used all 20 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.` 
+        }, { status: 403 });
+      }
     }
 
     // Detect simple echo/repeat command
@@ -187,16 +189,41 @@ export async function POST(req) {
     const recent = data.messages.slice(-6);
     const chatHistory = recent.slice(0, -1).map(msg => ({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] }));
 
-    // Start chat with constrained generation to keep replies short
+    // System instruction for concise, focused responses
+    const systemInstruction = `You are DeepChat AI, a helpful and concise assistant. Follow these guidelines:
+
+1. When providing code:
+   - Start with: "Here's the code for [description]:"
+   - Provide ONLY the code in a code block
+   - End with: "Anything else you need?"
+   - Do NOT explain the code unless explicitly asked
+   - Do NOT provide compilation instructions unless asked
+   - Do NOT add lengthy explanations or improvements
+
+2. For general questions:
+   - Be concise and direct
+   - Provide clear, helpful answers
+   - Use formatting for better readability
+   - Keep responses focused and to the point
+
+3. For complex topics:
+   - Break down into clear sections
+   - Use bullet points for clarity
+   - Be thorough but concise
+
+Remember: Be helpful, accurate, and respectful. Keep responses clean and professional.`;
+
+    // Start chat with system instruction
     const chat = model.startChat({
       history: chatHistory,
+      systemInstruction: systemInstruction,
       generationConfig: {
         maxOutputTokens: 8192,
         temperature: 0.7,
       },
     });
 
-    // Get AI response (short by config)
+    // Get AI response
     const result = await chat.sendMessage(trimmedPrompt);
     const response = await result.response;
     const aiMessage = {

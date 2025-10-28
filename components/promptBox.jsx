@@ -17,6 +17,9 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
   const promptBoxRef = useRef(null);
+  const micButtonRef = useRef(null);
+  const sendButtonRef = useRef(null);
+  const stopButtonRef = useRef(null);
   const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = UseAppContext();
   const abortControllerRef = useRef(null);
 
@@ -33,6 +36,37 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       });
     }
   }, [isFocused]);
+
+  // Button animation logic
+  useEffect(() => {
+    const hasText = prompt.trim() || selectedImage;
+
+    if (isLoading) {
+      // Show stop button
+      if (stopButtonRef.current) {
+        gsap.fromTo(stopButtonRef.current,
+          { scale: 0, opacity: 0, rotation: -180 },
+          { scale: 1, opacity: 1, rotation: 0, duration: 0.3, ease: 'back.out(1.7)' }
+        );
+      }
+    } else if (hasText) {
+      // Show send button
+      if (sendButtonRef.current) {
+        gsap.fromTo(sendButtonRef.current,
+          { scale: 0, opacity: 0, x: 20 },
+          { scale: 1, opacity: 1, x: 0, duration: 0.3, ease: 'back.out(1.7)' }
+        );
+      }
+    } else {
+      // Show mic button
+      if (micButtonRef.current) {
+        gsap.fromTo(micButtonRef.current,
+          { scale: 0, opacity: 0, rotation: 180 },
+          { scale: 1, opacity: 1, rotation: 0, duration: 0.3, ease: 'back.out(1.7)' }
+        );
+      }
+    }
+  }, [prompt, selectedImage, isLoading]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -226,6 +260,10 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
 
     try {
       setIsLoading(true);
+      
+      // Small delay to ensure loading state updates before clearing prompt
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       setPrompt('');
       
       // Auto-create chat if none selected
@@ -450,6 +488,55 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
             value={prompt}
             disabled={isLoading}
           />
+
+          {/* Right side buttons - Mic, Send, or Stop */}
+          <div className="flex items-center gap-2 ml-2">
+            {isLoading ? (
+              // Stop button
+              <button
+                ref={stopButtonRef}
+                type="button"
+                onClick={handleStop}
+                className="bg-white hover:bg-gray-200 rounded-full p-2.5 cursor-pointer transition shadow-lg flex-shrink-0"
+                title="Stop generating"
+              >
+                <div className="w-3.5 h-3.5 bg-black rounded-sm"></div>
+              </button>
+            ) : (prompt.trim() || selectedImage) ? (
+              // Send button
+              <button
+                ref={sendButtonRef}
+                type="submit"
+                disabled={isLoading}
+                className='bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30 rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0'
+                title='Send message'
+              >
+                <Image
+                  style={{ height: 'auto' }}
+                  className="w-4 aspect-square"
+                  src={assets.arrow_icon}
+                  alt="Send"
+                />
+              </button>
+            ) : (
+              // Mic button (default)
+              <button
+                ref={micButtonRef}
+                type="button"
+                onClick={toggleVoiceRecognition}
+                className={`rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0 ${
+                  isListening 
+                    ? 'bg-gray-600/50 hover:bg-gray-600/70' 
+                    : 'hover:bg-gray-700/50'
+                }`}
+                title={isListening ? 'Stop recording' : 'Voice input'}
+              >
+                <svg className='w-4 h-4 text-gray-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between text-sm mt-2">
@@ -473,59 +560,6 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </motion.label>
-          </div>
-          <div className="flex items-center gap-2">
-            {isLoading ? (
-              <motion.button
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                onClick={handleStop}
-                className="bg-white hover:bg-gray-200 rounded-full p-2 cursor-pointer transition shadow-lg"
-                title="Stop generating"
-              >
-                <div className="w-3 h-3 bg-black rounded-sm"></div>
-              </motion.button>
-            ) : (
-              <>
-                {!prompt.trim() && !selectedImage ? (
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    type="button"
-                    onClick={toggleVoiceRecognition}
-                    className={`rounded-full p-2 cursor-pointer transition-all ${
-                      isListening 
-                        ? 'bg-gray-600/50 hover:bg-gray-600/70' 
-                        : 'hover:bg-gray-700/50'
-                    }`}
-                    title={isListening ? 'Stop recording' : 'Voice input'}
-                  >
-                    <svg className='w-4 h-4 text-gray-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                  </motion.button>
-                ) : (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    type="submit"
-                    disabled={isLoading}
-                    className='bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30 rounded-full p-2 cursor-pointer transition-all'
-                    title='Send message'
-                  >
-                    <Image
-                      style={{ height: 'auto' }}
-                      className="w-4 aspect-square"
-                      src={assets.arrow_icon}
-                      alt="Send"
-                    />
-                  </motion.button>
-                )}
-              </>
-            )}
           </div>
         </div>
       </div>

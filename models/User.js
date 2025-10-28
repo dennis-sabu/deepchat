@@ -9,6 +9,8 @@ const UserSchema = new Schema(
     limitResetTime: { type: Date, default: () => new Date() }, // Track when the 8-hour period started
     warnings: { type: Number, default: 0 }, // Track bad word warnings
     bannedUntil: { type: Date, default: null }, // Track ban expiration time
+    isAdmin: { type: Boolean, default: false }, // Admin privilege
+    hasUnlimitedChats: { type: Boolean, default: false }, // Unlimited chat privilege
   },
   { timestamps: true }
 );
