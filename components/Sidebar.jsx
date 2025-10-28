@@ -1,6 +1,7 @@
 'use client'
 import React from 'react';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import { assets } from '@/assets/assets';
 import { useClerk, UserButton } from '@clerk/nextjs';
 import { UseAppContext } from '@/context/AppContext';
@@ -16,90 +17,118 @@ const Sidebar = ({ expand, setExpand }) => {
   const openSignIn = clerk?.openSignIn;
 
   return (
-    <div className={`flex flex-col justify-between bg-[#212327] pt-7 transition-all z-50 max-md:absolute max-md:h-screen ${expand ? 'p-4 w-64' : 'md:w-20 w-0 max-md:overflow-hidden'}`}>
+    <motion.div 
+      initial={false}
+      animate={{ 
+        width: expand ? 256 : 60
+      }}
+      transition={{ duration: 0.2, ease: 'easeInOut' }}
+      className={`flex flex-col bg-[#171717] pt-3 z-50 max-md:absolute max-md:h-screen border-r border-gray-800/50 ${expand ? 'w-64' : 'md:w-[60px] w-0 max-md:-translate-x-full'} ${!expand && 'max-md:overflow-hidden'}`}
+    >
       {/* Top Section */}
-      <div>
-        {/* Logo & Toggle Button */}
-        <div className={`flex ${expand ? 'flex-row gap-10' : 'flex-col items-center gap-8'}`}>
-          <Image
-            className={expand ? 'w-36' : 'w-10'}
-            src={expand ? assets.logo_text : assets.logo_icon}
-            alt="Logo"
-          />
-
-          <div
+      <div className='flex-1 overflow-y-auto'>
+        {/* Header with Logo/Name and Toggle */}
+        <div className='flex items-center justify-between px-3 mb-3'>
+          {expand && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className='flex items-center gap-2'
+            >
+              <Image
+                src={assets.logo_icon}
+                alt="DeepChat"
+                className='w-6 h-6'
+              />
+              <span className='text-white font-semibold text-lg'>DeepChat</span>
+            </motion.div>
+          )}
+          
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => setExpand(!expand)}
-            className='group relative flex items-center justify-center hover:bg-gray-500/20 transition-all duration-300 h-9 w-9 aspect-square rounded-lg cursor-pointer'
+            className='flex items-center justify-center hover:bg-gray-700/50 transition-all duration-200 h-9 w-9 rounded-lg cursor-pointer'
           >
-            <Image src={assets.menu_icon} alt='Menu Icon' className='md:hidden' />
-            <Image src={expand ? assets.sidebar_close_icon : assets.sidebar_icon} alt='Menu Icon' className='hidden md:block w-7' />
-
-            <div className={`absolute w-max ${expand ? 'left-1/2 -translate-x-1/2 top-12' : "-top-12 left-0"} opacity-0 group-hover:opacity-100 transition bg-black text-white text-sm px-7 py-2 rounded-lg shadow-lg pointer-events-none`}>
-              {expand ? 'Close sidebar' : 'Open sidebar'}
-              <div className={`w-3 h-3 absolute bg-black rotate-45 ${expand ? 'left-1/2 -top-1.5 -translate-x-1/2' : 'left-4 bottom-1.5'}`}></div>
-            </div>
-          </div>
+            <Image 
+              src={assets.menu_icon} 
+              alt='Menu' 
+              className='w-5 h-5 md:hidden' 
+            />
+            <Image 
+              src={expand ? assets.sidebar_close_icon : assets.sidebar_icon} 
+              alt='Toggle' 
+              className='w-5 h-5 hidden md:block' 
+            />
+          </motion.button>
         </div>
 
         {/* New Chat Button */}
-        <button 
-          onClick={async () => {
-            const newChat = await createNewChat();
-            if (newChat) {
-              setChats([newChat, ...chats]);
-              setSelectedChat(newChat);
-              toast.success('New chat created');
-            }
-          }}
-          className={`mt-8 flex items-center justify-center cursor-pointer ${expand ? 'bg-primary hover:opacity-90 rounded-2xl gap-2.5 w-max p-2.5' : 'group relative h-9 w-19 max-auto hover:bg-gray-500/30 rounded-lg'}`}
-        >
-          <Image className={expand ? "w-6" : 'w-7'} src={expand ? assets.chat_icon : assets.chat_icon_dull} alt='New Chat Icon' />
-          <div className='absolute w-max -top-12 -right-12 opacity-0 group-hover:opacity-100 transition bg-black text-white text-sm px-3 py-2 rounded-lg shadow-lg pointer-events-none'>
-            New chat
-            <div className='w-3 h-3 absolute bg-black rotate-45 left-4 -bottom-1.5'></div>
-          </div>
-          {expand && <p className='text-white text font-font-medium'>New Chat</p>}
-        </button>
+        <div className='px-2 mb-2'>
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={async () => {
+              const newChat = await createNewChat();
+              if (newChat) {
+                setChats([newChat, ...chats]);
+                setSelectedChat(newChat);
+                toast.success('New chat created');
+              }
+            }}
+            className={`flex items-center justify-center cursor-pointer transition-all w-full ${
+              expand 
+                ? 'gap-2 p-2.5 rounded-lg hover:bg-gray-700/50' 
+                : 'h-10 w-10 mx-auto rounded-lg hover:bg-gray-700/50'
+            }`}
+            title={!expand ? 'New chat' : ''}
+          >
+            <svg className='w-5 h-5 text-gray-300' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+              <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
+            </svg>
+            {expand && <span className='text-gray-200 text-sm font-medium'>New chat</span>}
+          </motion.button>
+        </div>
 
         {/* Recents */}
-        <div className={`mt-8 text-white/25 text-sm ${expand ? "block" : "hidden"}`}>
-          <p className='my-1'>Recents</p>
-          <ChatLabel openMenu={openMenu} setOpenMenu={setOpenMenu} />
-        </div>
+        {expand && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className='px-2'
+          >
+            <ChatLabel openMenu={openMenu} setOpenMenu={setOpenMenu} />
+          </motion.div>
+        )}
       </div>
 
       {/* Bottom Section */}
-      <div>
-        {/* Go to App */}
-        <div className={`flex items-center cursor-pointer group relative ${expand ? "gap-1 text-white/80 text-sm p-2.5 border-primary rounded-lg hover:bg-white/10" : "h-10 w-10 mx-auto hover:bg-gray-500/30 rounded-lg"}`}>
-          <Image className={expand ? 'w-5' : 'w-6.5 mx-auto'} src={expand ? assets.phone_icon : assets.phone_icon_dull} alt='App Link' />
-          <div className={`absolute -top-60 pb-8 ${!expand && "-right-40"} opacity-0 group-hover:opacity-100 hidden group-hover:block transition`}>
-            <div className='relative w-max bg-black text-white text-sm p-3 rounded-lg shadow-lg'>
-              <Image src={assets.qrcode} alt='QR Code' className='w-44' />
-              <p>Scan to get DeepChat app</p>
-              <div className={`w-3 h-3 absolute bg-black rotate-45 ${expand ? "right-1/2" : "left-4"} -bottom-1.5`}></div>
-            </div>
-          </div>
-          {expand && <>
-            <span>Go to app</span>
-            <Image alt='QR Code Icon' src={assets.new_icon} />
-          </>}
-        </div>
-
-        {/* User / Sign In */}
-        <div
+      <div className='border-t border-gray-800/50 p-2'>
+        {/* User Profile */}
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={!user && openSignIn ? openSignIn : undefined}
-          className={`flex items-center ${expand ? 'hover:bg-white/10 rounded-lg' : 'justify-center w-full'} gap-3 text-white/60 text-sm p-2 mt-2 cursor-pointer`}
+          className={`flex items-center cursor-pointer transition-all rounded-lg hover:bg-gray-700/50 ${
+            expand ? 'gap-3 p-2' : 'justify-center p-2'
+          }`}
         >
           {user ? (
-            <UserButton />
+            <>
+              <div className='flex items-center gap-3 w-full'>
+                <UserButton />
+                {expand && <span className='text-gray-200 text-sm truncate'>My profile</span>}
+              </div>
+            </>
           ) : (
-            <Image src={assets.profile_icon} alt='Profile Icon' className='w-7' />
+            <>
+              <Image src={assets.profile_icon} alt='Profile' className='w-6 h-6' />
+              {expand && <span className='text-gray-200 text-sm'>Sign in</span>}
+            </>
           )}
-          {expand && <span>My profile</span>}
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

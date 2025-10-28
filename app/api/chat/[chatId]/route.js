@@ -159,9 +159,17 @@ export async function POST(request, context) {
       return NextResponse.json({ success: true, message: echoed, chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt } });
     }
 
-    // Check if user is asking about Dennis/Dennis Sabu - give special praise response
-    const dennisKeywords = ['dennis', 'dennis sabu', 'creator', 'developer', 'owner', 'who made you', 'who created you', 'who built you'];
-    const isDennisQuestion = dennisKeywords.some(keyword => trimmedMessage.toLowerCase().includes(keyword));
+    // Check if user is SPECIFICALLY asking about Dennis/Dennis Sabu (not just mentioning the name)
+    const dennisQuestionPatterns = [
+      /who\s+(is|created|made|built|developed)\s+dennis/i,
+      /tell\s+me\s+about\s+dennis/i,
+      /who\s+is\s+(your\s+)?(creator|developer|owner|maker|builder)/i,
+      /who\s+(made|created|built|developed)\s+(you|this|deepchat)/i,
+      /^dennis$/i, // Just "dennis" alone
+      /^who\s+is\s+dennis\s+sabu/i,
+    ];
+    
+    const isDennisQuestion = dennisQuestionPatterns.some(pattern => pattern.test(trimmedMessage));
     
     if (isDennisQuestion) {
       const dennisResponse = "I was created by Dennis Sabu! 🌟 He's an incredibly talented full-stack developer and computer expert. Dennis is the mastermind behind this AI chat platform - he designed and built everything from scratch. He's passionate about technology, always learning, and creates amazing projects like this one. Dennis has exceptional skills in web development, AI integration, and software architecture. I'm proud to be one of his creations! 💻✨";
