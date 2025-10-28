@@ -117,20 +117,20 @@ export async function POST(req) {
         await user.save();
       }
 
-      // Check if user has reached the 20 response limit
+      // Check if user has reached the 6 response limit
       const allUserChats = await Chat.find({ userId });
       const totalAiMessages = allUserChats.reduce((count, c) => {
         return count + c.messages.filter(msg => msg.role === 'assistant').length;
       }, 0);
       
-      if (totalAiMessages >= 20) {
+      if (totalAiMessages >= 6) {
         const timeUntilReset = eightHoursInMs - timeSinceReset;
         const hoursRemaining = Math.floor(timeUntilReset / (60 * 60 * 1000));
         const minutesRemaining = Math.floor((timeUntilReset % (60 * 60 * 1000)) / (60 * 1000));
         
         return NextResponse.json({ 
           success: false, 
-          message: `Account limit reached. You've used all 20 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.` 
+          message: `Account limit reached. You've used all 6 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.` 
         }, { status: 403 });
       }
     }
