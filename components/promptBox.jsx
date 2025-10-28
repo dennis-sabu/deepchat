@@ -22,6 +22,8 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
   const stopButtonRef = useRef(null);
   const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = UseAppContext();
   const abortControllerRef = useRef(null);
+  const shouldContinueTypingRef = useRef(true);
+  const typingTimeoutsRef = useRef([]);
 
   // Smooth focus animation
   useEffect(() => {
@@ -260,6 +262,7 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
 
     try {
       setIsLoading(true);
+      shouldContinueTypingRef.current = true; // Reset typing flag
       
       // Small delay to ensure loading state updates before clearing prompt
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -328,7 +331,12 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         let displayContent = '';
 
         for (let i = 0; i < words.length; i++) {
-          setTimeout(() => {
+          const timeoutId = setTimeout(() => {
+            // Check if typing should continue
+            if (!shouldContinueTypingRef.current) {
+              return;
+            }
+            
             displayContent = words.slice(0, i + 1).join(' ');
             
             setSelectedChat((prev) => {
@@ -345,7 +353,7 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
               };
             });
 
-            // Update chat list
+            // Update chat list and set loading to false when typing is complete
             if (i === words.length - 1) {
               setChats((prevChats) =>
                 prevChats.map((chat) =>
@@ -358,8 +366,15 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
                     : chat
                 )
               );
+              // Set loading to false after typing animation completes
+              setIsLoading(false);
+              abortControllerRef.current = null;
+              typingTimeoutsRef.current = []; // Clear timeouts array
             }
           }, i * 50);
+          
+          // Store timeout ID so we can clear it if stopped
+          typingTimeoutsRef.current.push(timeoutId);
         }
       } else {
         toast.error(data.message || 'Failed to get response');
@@ -367,6 +382,8 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         if (imageCopy) {
           setImagePreview(imageCopy);
         }
+        setIsLoading(false);
+        abortControllerRef.current = null;
       }
     } catch (error) {
       console.error('Send prompt error:', error);
@@ -388,13 +405,21 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       if (imageCopy) {
         setImagePreview(imageCopy);
       }
-    } finally {
+      
+      // Set loading to false on error
       setIsLoading(false);
       abortControllerRef.current = null;
     }
   };
 
   const handleStop = async () => {
+    // Stop typing animation immediately
+    shouldContinueTypingRef.current = false;
+    
+    // Clear all pending typing timeouts
+    typingTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+    typingTimeoutsRef.current = [];
+    
     // Abort in-flight request and notify server
     try {
       if (abortControllerRef.current) {
@@ -489,10 +514,28 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
             disabled={isLoading}
           />
 
-          {/* Right side buttons - Mic, Send, or Stop */}
+          {/* Right side buttons - Always show Mic, plus Send or Stop */}
           <div className="flex items-center gap-2 ml-2">
+            {/* Mic button - always visible */}
+            <button
+              ref={micButtonRef}
+              type="button"
+              onClick={toggleVoiceRecognition}
+              className={`rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0 ${
+                isListening 
+                  ? 'bg-gray-600/50 hover:bg-gray-600/70' 
+                  : 'hover:bg-gray-700/50'
+              }`}
+              title={isListening ? 'Stop recording' : 'Voice input'}
+            >
+              <svg className='w-4 h-4 text-gray-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </button>
+
+            {/* Send or Stop button - always visible */}
             {isLoading ? (
-              // Stop button
+              // Stop button - when AI is responding
               <button
                 ref={stopButtonRef}
                 type="button"
@@ -500,16 +543,20 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
                 className="bg-white hover:bg-gray-200 rounded-full p-2.5 cursor-pointer transition shadow-lg flex-shrink-0"
                 title="Stop generating"
               >
-                <div className="w-3.5 h-3.5 bg-black rounded-sm"></div>
+                <div className="w-3.5 h-3.5 bg-black rounded-full"></div>
               </button>
-            ) : (prompt.trim() || selectedImage) ? (
-              // Send button
+            ) : (
+              // Send button - always visible as default
               <button
                 ref={sendButtonRef}
                 type="submit"
-                disabled={isLoading}
-                className='bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30 rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0'
-                title='Send message'
+                disabled={isLoading || (!prompt.trim() && !selectedImage)}
+                className={`rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0 ${
+                  (prompt.trim() || selectedImage)
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30'
+                    : 'bg-gray-700/50 opacity-50 cursor-not-allowed'
+                }`}
+                title={(prompt.trim() || selectedImage) ? 'Send message' : 'Type a message'}
               >
                 <Image
                   style={{ height: 'auto' }}
@@ -517,23 +564,6 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
                   src={assets.arrow_icon}
                   alt="Send"
                 />
-              </button>
-            ) : (
-              // Mic button (default)
-              <button
-                ref={micButtonRef}
-                type="button"
-                onClick={toggleVoiceRecognition}
-                className={`rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0 ${
-                  isListening 
-                    ? 'bg-gray-600/50 hover:bg-gray-600/70' 
-                    : 'hover:bg-gray-700/50'
-                }`}
-                title={isListening ? 'Stop recording' : 'Voice input'}
-              >
-                <svg className='w-4 h-4 text-gray-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
               </button>
             )}
           </div>

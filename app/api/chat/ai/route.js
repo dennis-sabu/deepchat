@@ -58,8 +58,11 @@ export async function POST(req) {
       });
     }
 
-    // Check if user is banned
-    if (user.bannedUntil && new Date() < new Date(user.bannedUntil)) {
+    // If user has unlimited chats, skip ALL restrictions (ban, bad words, limits)
+    const isUnlimitedUser = user.hasUnlimitedChats === true;
+
+    // Check if user is banned (skip for unlimited users)
+    if (!isUnlimitedUser && user.bannedUntil && new Date() < new Date(user.bannedUntil)) {
       const timeRemaining = new Date(user.bannedUntil) - new Date();
       const hoursLeft = Math.floor(timeRemaining / (60 * 60 * 1000));
       const minutesLeft = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
@@ -71,48 +74,50 @@ export async function POST(req) {
 
     const trimmedPrompt = prompt.trim();
 
-    // Check for bad words
-    const badWords = ['fuck', 'shit', 'bitch', 'asshole', 'damn', 'bastard', 'crap', 'dick', 'pussy', 'cock', 'slut', 'whore'];
-    const hasBadWord = badWords.some(word => trimmedPrompt.toLowerCase().includes(word));
-    
-    if (hasBadWord) {
-      user.warnings = (user.warnings || 0) + 1;
+    // Check for bad words (skip for unlimited users)
+    if (!isUnlimitedUser) {
+      const badWords = ['fuck', 'shit', 'bitch', 'asshole', 'damn', 'bastard', 'crap', 'dick', 'pussy', 'cock', 'slut', 'whore'];
+      const hasBadWord = badWords.some(word => trimmedPrompt.toLowerCase().includes(word));
       
-      if (user.warnings >= 2) {
-        user.bannedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        user.warnings = 0;
-        await user.save();
-        return NextResponse.json(
-          { success: false, message: '⚠️ You have been banned for 24 hours due to repeated use of inappropriate language. Please respect our community guidelines.' },
-          { status: 403 }
-        );
-      } else {
-        await user.save();
-        return NextResponse.json(
-          { success: false, message: '⚠️ Warning: Please avoid using inappropriate language. One more violation will result in a 24-hour ban.' },
-          { status: 400 }
-        );
+      if (hasBadWord) {
+        user.warnings = (user.warnings || 0) + 1;
+        
+        if (user.warnings >= 2) {
+          user.bannedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          user.warnings = 0;
+          await user.save();
+          return NextResponse.json(
+            { success: false, message: '⚠️ You have been banned for 24 hours due to repeated use of inappropriate language. Please respect our community guidelines.' },
+            { status: 403 }
+          );
+        } else {
+          await user.save();
+          return NextResponse.json(
+            { success: false, message: '⚠️ Warning: Please avoid using inappropriate language. One more violation will result in a 24-hour ban.' },
+            { status: 400 }
+          );
+        }
       }
     }
 
-    // Check if 8 hours have passed since last reset
-    const now = new Date();
-    const eightHoursInMs = 8 * 60 * 60 * 1000;
-    const timeSinceReset = now - new Date(user.limitResetTime);
+    // Check if 8 hours have passed since last reset (skip for unlimited users)
+    if (!isUnlimitedUser) {
+      const now = new Date();
+      const eightHoursInMs = 8 * 60 * 60 * 1000;
+      const timeSinceReset = now - new Date(user.limitResetTime);
 
-    // If 8 hours have passed, reset by deleting all old messages and updating reset time
-    if (timeSinceReset >= eightHoursInMs) {
-      await Chat.updateMany(
-        { userId },
-        { $set: { messages: [] } }
-      );
-      
-      user.limitResetTime = now;
-      await user.save();
-    }
+      // If 8 hours have passed, reset by deleting all old messages and updating reset time
+      if (timeSinceReset >= eightHoursInMs) {
+        await Chat.updateMany(
+          { userId },
+          { $set: { messages: [] } }
+        );
+        
+        user.limitResetTime = now;
+        await user.save();
+      }
 
-    // Check if user has reached the 20 response limit (skip if user has unlimited chats)
-    if (!user.hasUnlimitedChats) {
+      // Check if user has reached the 20 response limit
       const allUserChats = await Chat.find({ userId });
       const totalAiMessages = allUserChats.reduce((count, c) => {
         return count + c.messages.filter(msg => msg.role === 'assistant').length;

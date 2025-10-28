@@ -229,7 +229,7 @@ export default function Home() {
                     />
                   ))}
                 </AnimatePresence>
-                {isLoading && (
+                {isLoading && !selectedChat?.messages?.some(msg => msg.role === 'assistant' && msg.content && msg.content !== 'Thinking...') && (
                   <Message 
                     role='assistant' 
                     content='Thinking...'

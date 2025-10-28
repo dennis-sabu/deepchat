@@ -295,7 +295,9 @@ export default function AdminPanel() {
                           >
                             {user.hasUnlimitedChats ? 'Remove Unlimited' : 'Make Unlimited'}
                           </motion.button>
-                          {user.bannedUntil && new Date(user.bannedUntil) > new Date() && (
+                          
+                          {/* Ban/Unblock button */}
+                          {user.bannedUntil && new Date(user.bannedUntil) > new Date() ? (
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
@@ -304,7 +306,17 @@ export default function AdminPanel() {
                             >
                               Unblock
                             </motion.button>
+                          ) : (
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleAction('ban', user._id)}
+                              className="bg-red-600/20 hover:bg-red-600/40 text-red-400 px-3 py-1 rounded-lg text-xs font-semibold transition-all border border-red-500/30"
+                            >
+                              Ban 24h
+                            </motion.button>
                           )}
+                          
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
