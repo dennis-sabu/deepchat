@@ -6,6 +6,7 @@ import { assets } from '@/assets/assets';
 import { UseAppContext } from '@/context/AppContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import gsap from 'gsap';
 
 const PromptBox = ({ setIsLoading, isLoading }) => {
   const [prompt, setPrompt] = useState('');
@@ -15,8 +16,23 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
   const [isListening, setIsListening] = useState(false);
   const fileInputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const promptBoxRef = useRef(null);
   const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = UseAppContext();
   const abortControllerRef = useRef(null);
+
+  // Smooth focus animation
+  useEffect(() => {
+    if (promptBoxRef.current) {
+      gsap.to(promptBoxRef.current, {
+        scale: isFocused ? 1.01 : 1,
+        boxShadow: isFocused 
+          ? '0 10px 40px rgba(59, 130, 246, 0.15)' 
+          : '0 4px 20px rgba(0, 0, 0, 0.1)',
+        duration: 0.3,
+        ease: 'power2.out'
+      });
+    }
+  }, [isFocused]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -393,13 +409,8 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         )}
       </AnimatePresence>
 
-      <motion.div 
-        animate={{
-          boxShadow: isFocused 
-            ? '0 0 0 2px rgba(255, 255, 255, 0.1), 0 0 20px rgba(255, 255, 255, 0.05)' 
-            : '0 0 0 0px rgba(255, 255, 255, 0)'
-        }}
-        transition={{ duration: 0.2 }}
+      <div 
+        ref={promptBoxRef}
         className={`bg-transparent p-3 px-4 rounded-[28px] transition-all ${
           isFocused 
             ? 'border border-gray-500/50' 
@@ -430,7 +441,8 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            className="outline-none w-full resize-none overflow-hidden break-words bg-transparent text-gray-100 placeholder-gray-500"
+            className="outline-none w-full resize-none overflow-hidden break-words bg-transparent text-gray-100 placeholder-gray-500 font-sans text-base"
+            style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
             rows={1}
             placeholder={isListening ? "Listening..." : "Message DeepChat..."}
             onChange={(e) => setPrompt(e.target.value)}
@@ -516,7 +528,7 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
             )}
           </div>
         </div>
-      </motion.div>
+      </div>
     </motion.form>
   );
 };

@@ -6,23 +6,91 @@ import { assets } from '@/assets/assets';
 import { useClerk, UserButton } from '@clerk/nextjs';
 import { UseAppContext } from '@/context/AppContext';
 import ChatLabel from './ChatLabel';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+import gsap from 'gsap';
 
 const Sidebar = ({ expand, setExpand }) => {
   const clerk = useClerk();
   const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = UseAppContext();
   const [openMenu, setOpenMenu] = useState({id: 0, open: false});
+  const sidebarRef = useRef(null);
+  const contentRef = useRef(null);
+  const recentsRef = useRef(null);
+  const profileTextRef = useRef(null);
 
   const openSignIn = clerk?.openSignIn;
 
+  // Close sidebar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Only close on mobile or when expanded on desktop
+      if (expand && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setExpand(false);
+      }
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [expand, setExpand]);
+
+  useEffect(() => {
+    const tl = gsap.timeline();
+
+    if (expand) {
+      // Opening animation
+      if (sidebarRef.current) {
+        tl.to(sidebarRef.current, {
+          width: 256,
+          duration: 0.4,
+          ease: 'power2.inOut'
+        });
+      }
+
+      // Animate content elements that exist
+      const elementsToAnimate = [contentRef.current, recentsRef.current, profileTextRef.current].filter(el => el !== null);
+      if (elementsToAnimate.length > 0) {
+        tl.to(elementsToAnimate, {
+          opacity: 1,
+          x: 0,
+          duration: 0.3,
+          ease: 'power2.out',
+          stagger: 0.05
+        }, '-=0.2');
+      }
+    } else {
+      // Closing animation - hide content first, then shrink
+      const elementsToAnimate = [contentRef.current, recentsRef.current, profileTextRef.current].filter(el => el !== null);
+      if (elementsToAnimate.length > 0) {
+        tl.to(elementsToAnimate, {
+          opacity: 0,
+          x: -10,
+          duration: 0.2,
+          ease: 'power2.in',
+          stagger: 0.03
+        });
+      }
+
+      if (sidebarRef.current) {
+        tl.to(sidebarRef.current, {
+          width: 60,
+          duration: 0.4,
+          ease: 'power2.inOut'
+        }, '-=0.1');
+      }
+    }
+
+    return () => tl.kill();
+  }, [expand]);
+
   return (
-    <motion.div 
-      initial={false}
-      animate={{ 
-        width: expand ? 256 : 60
-      }}
-      transition={{ duration: 0.2, ease: 'easeInOut' }}
+    <div 
+      ref={sidebarRef}
       className={`flex flex-col bg-[#171717] pt-3 z-50 max-md:absolute max-md:h-screen border-r border-gray-800/50 ${expand ? 'w-64' : 'md:w-[60px] w-0 max-md:-translate-x-full'} ${!expand && 'max-md:overflow-hidden'}`}
     >
       {/* Top Section */}
@@ -30,18 +98,12 @@ const Sidebar = ({ expand, setExpand }) => {
         {/* Header with Logo/Name and Toggle */}
         <div className='flex items-center justify-between px-3 mb-3'>
           {expand && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className='flex items-center gap-2'
+            <div
+              ref={contentRef}
+              className='flex items-center gap-2 md:hidden'
             >
-              <Image
-                src={assets.logo_icon}
-                alt="DeepChat"
-                className='w-6 h-6'
-              />
               <span className='text-white font-semibold text-lg'>DeepChat</span>
-            </motion.div>
+            </div>
           )}
           
           <motion.button
@@ -92,13 +154,13 @@ const Sidebar = ({ expand, setExpand }) => {
 
         {/* Recents */}
         {expand && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <div 
+            ref={recentsRef}
+            style={{ opacity: 0 }}
             className='px-2'
           >
             <ChatLabel openMenu={openMenu} setOpenMenu={setOpenMenu} />
-          </motion.div>
+          </div>
         )}
       </div>
 
@@ -117,18 +179,34 @@ const Sidebar = ({ expand, setExpand }) => {
             <>
               <div className='flex items-center gap-3 w-full'>
                 <UserButton />
-                {expand && <span className='text-gray-200 text-sm truncate'>My profile</span>}
+                {expand && (
+                  <span 
+                    ref={profileTextRef}
+                    style={{ opacity: 0 }}
+                    className='text-gray-200 text-sm truncate'
+                  >
+                    My profile
+                  </span>
+                )}
               </div>
             </>
           ) : (
             <>
               <Image src={assets.profile_icon} alt='Profile' className='w-6 h-6' />
-              {expand && <span className='text-gray-200 text-sm'>Sign in</span>}
+              {expand && (
+                <span 
+                  ref={profileTextRef}
+                  style={{ opacity: 0 }}
+                  className='text-gray-200 text-sm'
+                >
+                  Sign in
+                </span>
+              )}
             </>
           )}
         </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
