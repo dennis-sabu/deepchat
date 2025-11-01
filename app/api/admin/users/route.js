@@ -25,17 +25,28 @@ export async function GET(request) {
     // Get chat counts for each user
     const usersWithStats = await Promise.all(
       users.map(async (user) => {
-        const chats = await Chat.find({ userId: user._id });
+        const chats = await Chat.find({ userId: user._id }).sort({ updatedAt: -1 });
         const totalMessages = chats.reduce((sum, chat) => sum + chat.messages.length, 0);
         const aiResponses = chats.reduce((sum, chat) => {
           return sum + chat.messages.filter(msg => msg.role === 'assistant').length;
         }, 0);
         
+        // Get last chat time (most recent message timestamp)
+        let lastChatTime = null;
+        if (chats.length > 0) {
+          const lastChat = chats[0]; // Most recent chat
+          if (lastChat.messages && lastChat.messages.length > 0) {
+            const lastMessage = lastChat.messages[lastChat.messages.length - 1];
+            lastChatTime = lastMessage.timestamp || lastChat.updatedAt;
+          }
+        }
+        
         return {
           ...user,
           totalChats: chats.length,
           totalMessages,
-          aiResponses
+          aiResponses,
+          lastChatTime
         };
       })
     );

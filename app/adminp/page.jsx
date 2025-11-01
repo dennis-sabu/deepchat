@@ -226,6 +226,7 @@ export default function AdminPanel() {
                 <thead className="bg-gray-800/50">
                   <tr>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">User</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">Dates</th>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">Stats</th>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">Status</th>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-gray-300">Actions</th>
@@ -241,10 +242,38 @@ export default function AdminPanel() {
                       className="border-t border-gray-700/50 hover:bg-gray-700/20 transition-all"
                     >
                       <td className="px-6 py-4">
-                        <div>
-                          <div className="font-semibold text-white">{user.name}</div>
-                          <div className="text-sm text-gray-400">{user.email || 'No email'}</div>
+                        <div className="space-y-1">
+                          <div className="font-bold text-lg text-white">{user.name}</div>
+                          <div className="text-sm text-blue-400 font-medium">{user.email || 'No email'}</div>
                           <div className="text-xs text-gray-500 mt-1">ID: {user._id.substring(0, 12)}...</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm space-y-1">
+                          <div className="text-gray-300">
+                            <span className="text-gray-500">Created:</span>
+                            <div className="text-blue-400 font-semibold">
+                              {user.createdAt ? new Date(user.createdAt).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A'}
+                            </div>
+                          </div>
+                          <div className="text-gray-300">
+                            <span className="text-gray-500">Last Chat:</span>
+                            <div className="text-green-400 font-semibold">
+                              {user.lastChatTime ? new Date(user.lastChatTime).toLocaleString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'Never'}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">

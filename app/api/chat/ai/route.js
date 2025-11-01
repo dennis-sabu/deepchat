@@ -48,14 +48,55 @@ export async function POST(req) {
     const authResult = await auth();
     let user = await User.findById(userId);
     if (!user) {
+      // Extract name and email from various possible Clerk fields
+      const userName = authResult.sessionClaims?.name || 
+                       authResult.sessionClaims?.firstName || 
+                       authResult.sessionClaims?.fullName ||
+                       authResult.sessionClaims?.username ||
+                       'User';
+      const userEmail = authResult.sessionClaims?.email || 
+                        authResult.sessionClaims?.emailAddress ||
+                        authResult.sessionClaims?.primaryEmailAddress?.emailAddress ||
+                        undefined;
+      
       user = await User.create({
         _id: userId,
-        name: authResult.sessionClaims?.name || authResult.sessionClaims?.firstName || 'User',
-        email: authResult.sessionClaims?.email || authResult.sessionClaims?.emailAddress || undefined,
+        name: userName,
+        email: userEmail,
         limitResetTime: new Date(),
         warnings: 0,
         bannedUntil: null
       });
+    } else {
+      // Update name and email if they're missing or set to default 'User'
+      let needsUpdate = false;
+      const updates = {};
+      
+      if (!user.name || user.name === 'User') {
+        const userName = authResult.sessionClaims?.name || 
+                         authResult.sessionClaims?.firstName || 
+                         authResult.sessionClaims?.fullName ||
+                         authResult.sessionClaims?.username;
+        if (userName) {
+          updates.name = userName;
+          needsUpdate = true;
+        }
+      }
+      
+      if (!user.email) {
+        const userEmail = authResult.sessionClaims?.email || 
+                          authResult.sessionClaims?.emailAddress ||
+                          authResult.sessionClaims?.primaryEmailAddress?.emailAddress;
+        if (userEmail) {
+          updates.email = userEmail;
+          needsUpdate = true;
+        }
+      }
+      
+      if (needsUpdate) {
+        await User.findByIdAndUpdate(userId, updates);
+        user = await User.findById(userId);
+      }
     }
 
     // If user has unlimited chats, skip ALL restrictions (ban, bad words, limits)
