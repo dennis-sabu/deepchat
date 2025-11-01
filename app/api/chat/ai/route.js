@@ -4,7 +4,7 @@ export const maxDuration = 60;
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
 import User from "@/models/User";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -46,19 +46,40 @@ export async function POST(req) {
 
     // Get or create user record to track limit reset time
     const authResult = await auth();
+    
+    // Fetch user data directly from Clerk
+    let clerkUser;
+    let userName = 'User';
+    let userEmail = undefined;
+    
+    try {
+      const client = await clerkClient();
+      clerkUser = await client.users.getUser(userId);
+      
+      userName = clerkUser?.fullName || 
+                 `${clerkUser?.firstName || ''} ${clerkUser?.lastName || ''}`.trim() ||
+                 clerkUser?.firstName ||
+                 'User';
+      
+      userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || 
+                  clerkUser?.primaryEmailAddress?.emailAddress ||
+                  undefined;
+      
+      console.log('✅ Clerk User Data fetched:', {
+        userId,
+        name: userName,
+        email: userEmail,
+        firstName: clerkUser?.firstName,
+        lastName: clerkUser?.lastName,
+        fullName: clerkUser?.fullName,
+        emailAddresses: clerkUser?.emailAddresses?.length
+      });
+    } catch (error) {
+      console.error('❌ Error fetching Clerk user:', error.message);
+    }
+    
     let user = await User.findById(userId);
     if (!user) {
-      // Extract name and email from various possible Clerk fields
-      const userName = authResult.sessionClaims?.name || 
-                       authResult.sessionClaims?.firstName || 
-                       authResult.sessionClaims?.fullName ||
-                       authResult.sessionClaims?.username ||
-                       'User';
-      const userEmail = authResult.sessionClaims?.email || 
-                        authResult.sessionClaims?.emailAddress ||
-                        authResult.sessionClaims?.primaryEmailAddress?.emailAddress ||
-                        undefined;
-      
       user = await User.create({
         _id: userId,
         name: userName,
@@ -67,33 +88,26 @@ export async function POST(req) {
         warnings: 0,
         bannedUntil: null
       });
+      console.log('✅ Created new user:', { name: userName, email: userEmail });
     } else {
       // Update name and email if they're missing or set to default 'User'
       let needsUpdate = false;
       const updates = {};
       
       if (!user.name || user.name === 'User') {
-        const userName = authResult.sessionClaims?.name || 
-                         authResult.sessionClaims?.firstName || 
-                         authResult.sessionClaims?.fullName ||
-                         authResult.sessionClaims?.username;
-        if (userName) {
+        if (userName && userName !== 'User') {
           updates.name = userName;
           needsUpdate = true;
         }
       }
       
-      if (!user.email) {
-        const userEmail = authResult.sessionClaims?.email || 
-                          authResult.sessionClaims?.emailAddress ||
-                          authResult.sessionClaims?.primaryEmailAddress?.emailAddress;
-        if (userEmail) {
-          updates.email = userEmail;
-          needsUpdate = true;
-        }
+      if (!user.email && userEmail) {
+        updates.email = userEmail;
+        needsUpdate = true;
       }
       
       if (needsUpdate) {
+        console.log('✅ Updating user with:', updates);
         await User.findByIdAndUpdate(userId, updates);
         user = await User.findById(userId);
       }
