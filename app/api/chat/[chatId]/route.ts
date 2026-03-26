@@ -1,18 +1,15 @@
-// app/api/chat/[chatId]/route.js
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
 import User from "@/models/User";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-export async function POST(request, context) {
+export async function POST(request: Request, context: { params: Promise<{ chatId: string }> }) {
   try {
-    const authResult = await auth();
-    console.log("POST [chatId] - Auth result:", authResult);
+    const authResult = await auth() as any;
     const { userId } = authResult;
-    
+
     if (!userId) {
-      console.log("POST [chatId] - No userId found");
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -20,11 +17,9 @@ export async function POST(request, context) {
     }
 
     const { chatId } = await context.params;
-    console.log("POST [chatId] - chatId:", chatId, "userId:", userId);
     const body = await request.json();
-    const { message, image, stop } = body;
+    const { message, image, stop } = body as { message?: string; image?: string; stop?: boolean };
 
-    // If frontend sends a stop flag (or user typed 'stop'), immediately stop and return
     if (stop === true || (typeof message === 'string' && message.trim().toLowerCase() === 'stop')) {
       return NextResponse.json({ success: true, message: 'Stopped by user.' });
     }
@@ -36,18 +31,17 @@ export async function POST(request, context) {
       );
     }
 
-    // Check if API key is configured
-    if (!process.env.GOOGLE_API_KEY) {
-      return NextResponse.json({ 
-        success: false, 
-        message: "Google API key not configured" 
+    const groqApiKey = process.env.GROQ_API_KEY || process.env.NEXT_PUBLIC_GROQ_API_KEY;
+    if (!groqApiKey) {
+      return NextResponse.json({
+        success: false,
+        message: "Groq API key not configured"
       }, { status: 500 });
     }
 
     await connectDB();
 
-    // Find the chat and verify ownership
-    const chat = await Chat.findOne({ _id: chatId, userId });
+    const chat = await (Chat as any).findOne({ _id: chatId, userId });
     if (!chat) {
       return NextResponse.json(
         { success: false, message: "Chat not found" },
@@ -55,10 +49,9 @@ export async function POST(request, context) {
       );
     }
 
-    // Get or create user record to track limit reset time
-    let user = await User.findById(userId);
+    let user = await (User as any).findById(userId);
     if (!user) {
-      user = await User.create({
+      user = await (User as any).create({
         _id: userId,
         name: authResult.sessionClaims?.name || authResult.sessionClaims?.firstName || 'User',
         email: authResult.sessionClaims?.email || authResult.sessionClaims?.emailAddress || undefined,
@@ -68,9 +61,8 @@ export async function POST(request, context) {
       });
     }
 
-    // Check if user is banned
     if (user.bannedUntil && new Date() < new Date(user.bannedUntil)) {
-      const timeRemaining = new Date(user.bannedUntil) - new Date();
+      const timeRemaining = new Date(user.bannedUntil).getTime() - new Date().getTime();
       const hoursLeft = Math.floor(timeRemaining / (60 * 60 * 1000));
       const minutesLeft = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
       return NextResponse.json(
@@ -79,74 +71,64 @@ export async function POST(request, context) {
       );
     }
 
-    // Check for bad words (profanity/inappropriate language)
     const trimmedMessage = message.trim();
     const badWords = ['fuck', 'shit', 'bitch', 'asshole', 'damn', 'bastard', 'crap', 'dick', 'pussy', 'cock', 'slut', 'whore'];
     const hasBadWord = badWords.some(word => trimmedMessage.toLowerCase().includes(word));
-    
+
     if (hasBadWord) {
       user.warnings = (user.warnings || 0) + 1;
-      
+
       if (user.warnings >= 2) {
-        // Ban for 24 hours on second warning
         user.bannedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        user.warnings = 0; // Reset warnings after ban
+        user.warnings = 0;
         await user.save();
-        
+
         return NextResponse.json(
-          { success: false, message: '⚠️ You have been banned for 24 hours due to repeated use of inappropriate language. Please respect our community guidelines.' },
+          { success: false, message: 'You have been banned for 24 hours due to repeated use of inappropriate language.' },
           { status: 403 }
         );
       } else {
-        // First warning
         await user.save();
         return NextResponse.json(
-          { success: false, message: '⚠️ Warning: Please avoid using inappropriate language. One more violation will result in a 24-hour ban.' },
+          { success: false, message: 'Warning: Please avoid using inappropriate language. One more violation will result in a 24-hour ban.' },
           { status: 400 }
         );
       }
     }
 
-    // Check if 8 hours have passed since last reset
     const now = new Date();
-    const eightHoursInMs = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
-    const timeSinceReset = now - new Date(user.limitResetTime);
+    const eightHoursInMs = 8 * 60 * 60 * 1000;
+    const timeSinceReset = now.getTime() - new Date(user.limitResetTime).getTime();
 
-    // If 8 hours have passed, reset by deleting all old messages and updating reset time
     if (timeSinceReset >= eightHoursInMs) {
-      // Delete all messages from all user's chats (reset the count)
-      await Chat.updateMany(
+      await (Chat as any).updateMany(
         { userId },
         { $set: { messages: [] } }
       );
-      
-      // Update the reset time
+
       user.limitResetTime = now;
       await user.save();
     }
 
-    // Check if user has reached the 20 response limit in current 8-hour window
-    const allUserChats = await Chat.find({ userId });
-    const totalAiMessages = allUserChats.reduce((count, c) => {
-      return count + c.messages.filter(msg => msg.role === 'assistant').length;
+    const allUserChats = await (Chat as any).find({ userId });
+    const totalAiMessages = allUserChats.reduce((count: number, c: any) => {
+      return count + c.messages.filter((msg: any) => msg.role === 'assistant').length;
     }, 0);
-    
+
     if (totalAiMessages >= 20) {
-      // Calculate time remaining until reset
       const timeUntilReset = eightHoursInMs - timeSinceReset;
       const hoursRemaining = Math.floor(timeUntilReset / (60 * 60 * 1000));
       const minutesRemaining = Math.floor((timeUntilReset % (60 * 60 * 1000)) / (60 * 1000));
-      
+
       return NextResponse.json(
-        { 
-          success: false, 
-          message: `Account limit reached. You've used all 20 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.` 
+        {
+          success: false,
+          message: `Account limit reached. You've used all 20 AI responses. Resets in ${hoursRemaining}h ${minutesRemaining}m.`
         },
         { status: 403 }
       );
     }
 
-    // Detect simple echo/repeat commands: if user says "repeat X" or "echo X", just return X
     const echoMatch = trimmedMessage.match(/^(?:repeat|echo|say exactly)[:\s]+(.+)/i);
     if (echoMatch) {
       const echoed = echoMatch[1].trim();
@@ -159,57 +141,54 @@ export async function POST(request, context) {
       return NextResponse.json({ success: true, message: echoed, chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt } });
     }
 
-    // Check if user is SPECIFICALLY asking about Dennis/Dennis Sabu (not just mentioning the name)
     const dennisQuestionPatterns = [
       /who\s+(is|created|made|built|developed)\s+dennis/i,
       /tell\s+me\s+about\s+dennis/i,
       /who\s+is\s+(your\s+)?(creator|developer|owner|maker|builder)/i,
       /who\s+(made|created|built|developed)\s+(you|this|deepchat)/i,
-      /^dennis$/i, // Just "dennis" alone
+      /^dennis$/i,
       /^who\s+is\s+dennis\s+sabu/i,
     ];
-    
+
     const isDennisQuestion = dennisQuestionPatterns.some(pattern => pattern.test(trimmedMessage));
-    
+
     if (isDennisQuestion) {
-      const dennisResponse = "I was created by Dennis Sabu! 🌟 He's an incredibly talented full-stack developer and computer expert. Dennis is the mastermind behind this AI chat platform - he designed and built everything from scratch. He's passionate about technology, always learning, and creates amazing projects like this one. Dennis has exceptional skills in web development, AI integration, and software architecture. I'm proud to be one of his creations! 💻✨";
-      
+      const dennisResponse = "I was created by Dennis Sabu! He's an incredibly talented full-stack developer and computer expert. Dennis is the mastermind behind this AI chat platform - he designed and built everything from scratch. He's passionate about technology, always learning, and creates amazing projects like this one. Dennis has exceptional skills in web development, AI integration, and software architecture. I'm proud to be one of his creations!";
+
       const userMessage = { role: 'user', content: trimmedMessage, image: image || null, timestamp: new Date() };
       const aiMessage = { role: 'assistant', content: dennisResponse, timestamp: new Date() };
       chat.messages.push(userMessage);
       chat.messages.push(aiMessage);
       chat.updatedAt = new Date();
       await chat.save();
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: dennisResponse, 
-        chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt } 
+
+      return NextResponse.json({
+        success: true,
+        message: dennisResponse,
+        chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt }
       });
     }
 
-    // Check if user is asking about the AI's name
     const nameKeywords = ['your name', 'what are you called', 'who are you', 'what is your name', 'introduce yourself', "what's your name"];
     const isNameQuestion = nameKeywords.some(keyword => trimmedMessage.toLowerCase().includes(keyword));
-    
+
     if (isNameQuestion) {
-      const nameResponse = "I'm DeepChat AI! 🚀\n\n✨ *Your intelligent conversation companion*\n\nI'm here to help you with anything you need - from answering questions and solving problems to having engaging conversations. Powered by advanced AI technology and built by Dennis Sabu, I'm designed to provide accurate, helpful, and thoughtful responses.\n\n💡 **What I can do:**\n- Answer questions on any topic\n- Help with coding and technical problems\n- Engage in creative conversations\n- Assist with learning and research\n- And much more!\n\nLet's chat! What can I help you with today? 😊";
-      
+      const nameResponse = "I'm DeepChat AI! Your intelligent conversation companion. I'm here to help you with anything you need - from answering questions and solving problems to having engaging conversations. Powered by advanced AI technology and built by Dennis Sabu, I'm designed to provide accurate, helpful, and thoughtful responses.";
+
       const userMessage = { role: 'user', content: trimmedMessage, image: image || null, timestamp: new Date() };
       const aiMessage = { role: 'assistant', content: nameResponse, timestamp: new Date() };
       chat.messages.push(userMessage);
       chat.messages.push(aiMessage);
       chat.updatedAt = new Date();
       await chat.save();
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: nameResponse, 
-        chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt } 
+
+      return NextResponse.json({
+        success: true,
+        message: nameResponse,
+        chat: { _id: chat._id, name: chat.name, messages: chat.messages, updatedAt: chat.updatedAt }
       });
     }
 
-    // Add user message to chat
     const userMessage = {
       role: 'user',
       content: trimmedMessage,
@@ -218,57 +197,60 @@ export async function POST(request, context) {
     };
     chat.messages.push(userMessage);
 
-    // Build a short conversation history (last 6 messages) for brevity
+    const systemInstruction = `You are DeepChat AI, a helpful and concise assistant. Follow these guidelines:
+1. When providing code: Provide ONLY the code in a code block. End with: "Anything else you need?"
+2. For general questions: Be concise and direct, provide clear, helpful answers.
+3. For complex topics: Break down into clear sections, use bullet points for clarity.`;
+
     const recent = chat.messages.slice(-6);
-    const contents = recent.map(msg => ({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] }));
+    const chatHistory = recent.slice(0, -1).map((msg: any) => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content,
+    }));
 
-    // Call Gemini API directly
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GOOGLE_API_KEY,
-        },
-        body: JSON.stringify({
-          contents: contents,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 8192,
-          }
-        }),
-      }
-    );
+    const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${groqApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-120b",
+        temperature: 0.7,
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: systemInstruction },
+          ...chatHistory,
+          { role: "user", content: trimmedMessage },
+        ],
+      }),
+    });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("Gemini API error:", data);
+    if (!groqResponse.ok) {
+      const errorText = await groqResponse.text();
+      console.error("Groq API error:", errorText);
       return NextResponse.json(
-        { success: false, message: data.error?.message || "AI service error" },
+        { success: false, message: "AI service error" },
         { status: 500 }
       );
     }
 
-    // Extract AI response
-    const assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response from AI.";
+    const groqJson = await groqResponse.json();
+    const assistantMessage = groqJson?.choices?.[0]?.message?.content || "No response from AI.";
 
-    // Add AI response to chat
     const aiMessageObj = {
       role: 'assistant',
       content: assistantMessage,
       timestamp: new Date()
     };
-    
+
     chat.messages.push(aiMessageObj);
     chat.updatedAt = new Date();
-    
-    // Update chat name if it's the first message
+
     if (chat.messages.length === 2) {
       chat.name = message.trim().substring(0, 30) + (message.length > 30 ? '...' : '');
     }
-    
+
     await chat.save();
 
     return NextResponse.json({
@@ -282,9 +264,9 @@ export async function POST(request, context) {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("POST /api/chat/[chatId] error:", error);
-    
+
     return NextResponse.json(
       { success: false, message: error.message || "Internal Server Error" },
       { status: 500 }
@@ -292,11 +274,10 @@ export async function POST(request, context) {
   }
 }
 
-// Get chat messages
-export async function GET(request, context) {
+export async function GET(request: Request, context: { params: Promise<{ chatId: string }> }) {
   try {
-    const { userId } = await auth();
-    
+    const { userId } = await auth() as { userId?: string };
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
@@ -307,7 +288,7 @@ export async function GET(request, context) {
     const { chatId } = await context.params;
     await connectDB();
 
-    const chat = await Chat.findOne({ _id: chatId, userId });
+    const chat = await (Chat as any).findOne({ _id: chatId, userId });
     if (!chat) {
       return NextResponse.json(
         { success: false, message: "Chat not found" },
@@ -326,7 +307,7 @@ export async function GET(request, context) {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("GET /api/chat/[chatId] error:", error);
     return NextResponse.json(
       { success: false, message: "Internal Server Error" },
@@ -335,11 +316,10 @@ export async function GET(request, context) {
   }
 }
 
-// Delete chat
-export async function DELETE(request, context) {
+export async function DELETE(request: Request, context: { params: Promise<{ chatId: string }> }) {
   try {
-    const { userId } = await auth();
-    
+    const { userId } = await auth() as { userId?: string };
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
@@ -350,7 +330,7 @@ export async function DELETE(request, context) {
     const { chatId } = await context.params;
     await connectDB();
 
-    const deletedChat = await Chat.findOneAndDelete({ _id: chatId, userId });
+    const deletedChat = await (Chat as any).findOneAndDelete({ _id: chatId, userId });
 
     if (!deletedChat) {
       return NextResponse.json(
@@ -364,7 +344,7 @@ export async function DELETE(request, context) {
       message: "Chat deleted successfully"
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("DELETE /api/chat/[chatId] error:", error);
     return NextResponse.json(
       { success: false, message: "Internal Server Error" },

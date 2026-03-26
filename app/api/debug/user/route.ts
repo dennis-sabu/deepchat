@@ -4,16 +4,14 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Get user from Clerk
     const client = await clerkClient();
     const clerkUser = await client.users.getUser(userId);
-    
-    // Return all user data
+
     return NextResponse.json({
       userId,
       clerkUser: {
@@ -29,10 +27,10 @@ export async function GET() {
         unsafeMetadata: clerkUser.unsafeMetadata,
       }
     });
-  } catch (error) {
-    return NextResponse.json({ 
+  } catch (error: any) {
+    return NextResponse.json({
       error: error.message,
-      stack: error.stack 
+      stack: error.stack
     }, { status: 500 });
   }
 }

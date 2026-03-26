@@ -1,14 +1,13 @@
-// app/api/chat/create/route.js
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
 import User from "@/models/User";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
-    const { userId } = await auth();
-    
+    const { userId } = await auth() as { userId?: string };
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
@@ -18,31 +17,29 @@ export async function POST(request) {
 
     await connectDB();
 
-    // Ensure user exists in database with proper info
-    let user = await User.findById(userId);
-    
+    let user = await (User as any).findById(userId);
+
     if (!user) {
-      // Fetch user data directly from Clerk
       let userName = 'User';
-      let userEmail = undefined;
-      
+      let userEmail: string | undefined = undefined;
+
       try {
         const client = await clerkClient();
         const clerkUser = await client.users.getUser(userId);
-        
-        userName = clerkUser?.fullName || 
-                   `${clerkUser?.firstName || ''} ${clerkUser?.lastName || ''}`.trim() ||
-                   clerkUser?.firstName ||
-                   'User';
-        
-        userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || 
-                    clerkUser?.primaryEmailAddress?.emailAddress ||
-                    undefined;
+
+        userName = clerkUser?.fullName ||
+          `${clerkUser?.firstName || ''} ${clerkUser?.lastName || ''}`.trim() ||
+          clerkUser?.firstName ||
+          'User';
+
+        userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress ||
+          clerkUser?.primaryEmailAddress?.emailAddress ||
+          undefined;
       } catch (error) {
         console.error('Error fetching Clerk user:', error);
       }
-      
-      user = await User.create({
+
+      user = await (User as any).create({
         _id: userId,
         name: userName,
         email: userEmail,
@@ -52,7 +49,7 @@ export async function POST(request) {
       });
     }
 
-    const newChat = new Chat({
+    const newChat = new (Chat as any)({
       userId,
       name: "New Chat",
       messages: [],
@@ -66,7 +63,7 @@ export async function POST(request) {
       message: "Chat created successfully"
     }, { status: 201 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("POST /api/chat/create error:", error);
     return NextResponse.json(
       { success: false, message: "Internal Server Error" },

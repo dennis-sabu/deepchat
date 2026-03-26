@@ -3,13 +3,32 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 
+interface IUser {
+  _id: string;
+  name: string;
+  email?: string;
+  createdAt?: string;
+  lastChatTime?: string;
+  totalChats: number;
+  totalMessages: number;
+  aiResponses: number;
+  warnings: number;
+  bannedUntil?: string | null;
+  hasUnlimitedChats: boolean;
+}
+
+interface IEditForm {
+  name: string;
+  email: string;
+}
+
 export default function AdminPanel() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminCode, setAdminCode] = useState('');
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<IUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '' });
+  const [editingUser, setEditingUser] = useState<IUser | null>(null);
+  const [editForm, setEditForm] = useState<IEditForm>({ name: '', email: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const handleLogin = () => {
@@ -52,7 +71,7 @@ export default function AdminPanel() {
     }
   };
 
-  const handleAction = async (action, userId, extraData) => {
+  const handleAction = async (action: string, userId: string, extraData?: any) => {
     try {
       const response = await fetch('/api/admin/users', {
         method: 'POST',
@@ -68,8 +87,7 @@ export default function AdminPanel() {
         toast.success(data.message);
         fetchUsers();
         if (action === 'toggleUnlimited') {
-          // Update local state immediately for better UX
-          setUsers(users.map(u => 
+          setUsers(users.map(u =>
             u._id === userId ? { ...u, hasUnlimitedChats: data.hasUnlimitedChats } : u
           ));
         }
@@ -81,7 +99,7 @@ export default function AdminPanel() {
     }
   };
 
-  const handleEdit = (user) => {
+  const handleEdit = (user: IUser) => {
     setEditingUser(user);
     setEditForm({ name: user.name, email: user.email || '' });
   };
@@ -98,7 +116,7 @@ export default function AdminPanel() {
     toast.success('Logged out');
   };
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter(user =>
     user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user._id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -147,7 +165,6 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-4 md:p-8">
-      {/* Header */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-800/30 backdrop-blur-xl border border-gray-700 rounded-2xl p-6">
           <div>
@@ -180,7 +197,6 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-6">
@@ -202,7 +218,6 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {/* Search */}
       <div className="max-w-7xl mx-auto mb-6">
         <input
           type="text"
@@ -213,7 +228,6 @@ export default function AdminPanel() {
         />
       </div>
 
-      {/* Users Table */}
       <div className="max-w-7xl mx-auto">
         <div className="bg-gray-800/30 backdrop-blur-xl border border-gray-700 rounded-2xl overflow-hidden">
           {loading ? (
@@ -317,15 +331,14 @@ export default function AdminPanel() {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleAction('toggleUnlimited', user._id)}
                             className={`${
-                              user.hasUnlimitedChats 
-                                ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border-orange-500/30' 
+                              user.hasUnlimitedChats
+                                ? 'bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border-orange-500/30'
                                 : 'bg-green-600/20 hover:bg-green-600/40 text-green-400 border-green-500/30'
                             } px-3 py-1 rounded-lg text-xs font-semibold transition-all border`}
                           >
                             {user.hasUnlimitedChats ? 'Remove Unlimited' : 'Make Unlimited'}
                           </motion.button>
-                          
-                          {/* Ban/Unblock button */}
+
                           {user.bannedUntil && new Date(user.bannedUntil) > new Date() ? (
                             <motion.button
                               whileHover={{ scale: 1.05 }}
@@ -345,7 +358,7 @@ export default function AdminPanel() {
                               Ban 24h
                             </motion.button>
                           )}
-                          
+
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
@@ -377,7 +390,6 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {/* Edit Modal */}
       <AnimatePresence>
         {editingUser && (
           <motion.div

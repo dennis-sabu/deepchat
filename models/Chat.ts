@@ -1,7 +1,22 @@
-// @/models/Chat.js
-import mongoose from 'mongoose';
+import mongoose, { Schema, model, models } from 'mongoose';
 
-const MessageSchema = new mongoose.Schema({
+export interface IMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  image?: string;
+  timestamp: Date;
+}
+
+export interface IChat {
+  _id?: string;
+  userId: string;
+  name: string;
+  messages: IMessage[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const MessageSchema = new Schema<IMessage>({
   role: {
     type: String,
     enum: ['user', 'assistant'],
@@ -21,7 +36,7 @@ const MessageSchema = new mongoose.Schema({
   }
 });
 
-const ChatSchema = new mongoose.Schema({
+const ChatSchema = new Schema<IChat>({
   userId: {
     type: String,
     required: true,
@@ -43,10 +58,11 @@ const ChatSchema = new mongoose.Schema({
   }
 });
 
-// Update the updatedAt field before saving
 ChatSchema.pre('save', function(next) {
   this.updatedAt = new Date();
   next();
 });
 
-export default mongoose.models.Chat || mongoose.model('Chat', ChatSchema);
+const Chat = models.Chat || model<IChat>('Chat', ChatSchema);
+
+export default Chat;

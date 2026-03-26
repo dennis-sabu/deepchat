@@ -1,14 +1,12 @@
-// app/api/chat/route.js
 import connectDB from "@/config/db";
 import Chat from "@/models/Chat";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-// Get all chats for a user
-export async function GET(request) {
+export async function GET(request: Request) {
   try {
-    const { userId } = auth();
-    
+    const { userId } = await auth() as { userId?: string };
+
     if (!userId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
@@ -18,17 +16,16 @@ export async function GET(request) {
 
     await connectDB();
 
-    const chats = await Chat.find({ userId })
-      .select('_id name createdAt updatedAt')
+    const chats = await (Chat as any).find({ userId })
       .sort({ updatedAt: -1 });
 
     return NextResponse.json({
       success: true,
-      chats
-    });
+      data: chats
+    }, { status: 200 });
 
-  } catch (error) {
-    console.error("GET /api/chat error:", error);
+  } catch (error: any) {
+    console.error("GET /api/chat/get error:", error);
     return NextResponse.json(
       { success: false, message: "Internal Server Error" },
       { status: 500 }

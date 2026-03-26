@@ -7,31 +7,37 @@ import { UseAppContext } from '@/context/AppContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import gsap from 'gsap';
+import MagneticWrapper from './MagneticWrapper';
 
-const PromptBox = ({ setIsLoading, isLoading }) => {
+interface PromptBoxProps {
+  isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
+}
+
+const PromptBox = ({ setIsLoading, isLoading }: PromptBoxProps) => {
   const [prompt, setPrompt] = useState('');
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const fileInputRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const promptBoxRef = useRef(null);
-  const micButtonRef = useRef(null);
-  const sendButtonRef = useRef(null);
-  const stopButtonRef = useRef(null);
-  const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = UseAppContext();
-  const abortControllerRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const promptBoxRef = useRef<HTMLDivElement>(null);
+  const micButtonRef = useRef<HTMLButtonElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
+  const context = UseAppContext() as any;
+  const { user, chats, setChats, selectedChat, setSelectedChat, createNewChat } = context;
+  const abortControllerRef = useRef<AbortController | null>(null);
   const shouldContinueTypingRef = useRef(true);
-  const typingTimeoutsRef = useRef([]);
+  const typingTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
-  // Smooth focus animation
   useEffect(() => {
     if (promptBoxRef.current) {
       gsap.to(promptBoxRef.current, {
         scale: isFocused ? 1.01 : 1,
-        boxShadow: isFocused 
-          ? '0 10px 40px rgba(59, 130, 246, 0.15)' 
+        boxShadow: isFocused
+          ? '0 10px 40px rgba(59, 130, 246, 0.15)'
           : '0 4px 20px rgba(0, 0, 0, 0.1)',
         duration: 0.3,
         ease: 'power2.out'
@@ -39,12 +45,10 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
     }
   }, [isFocused]);
 
-  // Button animation logic
   useEffect(() => {
     const hasText = prompt.trim() || selectedImage;
 
     if (isLoading) {
-      // Show stop button
       if (stopButtonRef.current) {
         gsap.fromTo(stopButtonRef.current,
           { scale: 0, opacity: 0, rotation: -180 },
@@ -52,7 +56,6 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         );
       }
     } else if (hasText) {
-      // Show send button
       if (sendButtonRef.current) {
         gsap.fromTo(sendButtonRef.current,
           { scale: 0, opacity: 0, x: 20 },
@@ -60,7 +63,6 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         );
       }
     } else {
-      // Show mic button
       if (micButtonRef.current) {
         gsap.fromTo(micButtonRef.current,
           { scale: 0, opacity: 0, rotation: 180 },
@@ -70,13 +72,11 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
     }
   }, [prompt, selectedImage, isLoading]);
 
-  // Initialize speech recognition
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
       if (!SpeechRecognition) {
-        console.log('Speech recognition not supported');
         return;
       }
 
@@ -90,7 +90,7 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         console.log('Speech recognition started');
       };
 
-      recognition.onresult = (event) => {
+      recognition.onresult = (event: any) => {
         let finalTranscript = '';
         let interimTranscript = '';
 
@@ -103,7 +103,6 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
           }
         }
 
-        // Update prompt with final or interim results
         if (finalTranscript) {
           setPrompt(prev => prev + finalTranscript);
         } else if (interimTranscript) {
@@ -115,9 +114,9 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         }
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = (event: any) => {
         console.log('Speech recognition error:', event.error);
-        
+
         if (event.error === 'not-allowed' || event.error === 'permission-denied') {
           toast.error('Microphone permission denied');
           setIsListening(false);
@@ -127,13 +126,11 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
           toast.error('No microphone found');
           setIsListening(false);
         }
-        // Ignore network and aborted errors as they're not critical
       };
 
       recognition.onend = () => {
         console.log('Speech recognition ended');
         if (isListening) {
-          // Restart if still in listening mode
           try {
             recognition.start();
           } catch (err) {
@@ -164,7 +161,6 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
     }
 
     if (isListening) {
-      // Stop listening
       try {
         recognitionRef.current.stop();
         setIsListening(false);
@@ -173,14 +169,12 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         setIsListening(false);
       }
     } else {
-      // Start listening
       try {
         recognitionRef.current.start();
         setIsListening(true);
-      } catch (err) {
+      } catch (err: any) {
         console.log('Start error:', err);
-        
-        // If already started, just toggle the state
+
         if (err.message && err.message.includes('already started')) {
           recognitionRef.current.stop();
           setTimeout(() => {
@@ -198,34 +192,31 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
     }
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendPrompt(e);
+      sendPrompt(e as any);
     }
   };
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
-      // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast.error('Image size should be less than 5MB');
         return;
       }
 
-      // Check file type
       if (!file.type.startsWith('image/')) {
         toast.error('Please select an image file');
         return;
       }
 
       setSelectedImage(file);
-      
-      // Create preview
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result);
+        setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -239,9 +230,9 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
     }
   };
 
-  const sendPrompt = async (e) => {
+  const sendPrompt = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast.error('Please log in to send messages');
       return;
@@ -262,14 +253,12 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
 
     try {
       setIsLoading(true);
-      shouldContinueTypingRef.current = true; // Reset typing flag
-      
-      // Small delay to ensure loading state updates before clearing prompt
+      shouldContinueTypingRef.current = true;
+
       await new Promise(resolve => setTimeout(resolve, 50));
-      
+
       setPrompt('');
-      
-      // Auto-create chat if none selected
+
       let currentChat = selectedChat;
       if (!currentChat?._id) {
         const newChat = await createNewChat();
@@ -279,26 +268,24 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
           return;
         }
         currentChat = newChat;
-        setChats([newChat, ...chats]);
+        setChats((prev: any[]) => [newChat, ...prev]);
         setSelectedChat(newChat);
       }
 
-      // Create user message
-      const userMessage = {
+      const userMessage: any = {
         role: 'user',
         content: prompt.trim(),
         image: imagePreview,
         timestamp: Date.now(),
       };
 
-      // Update UI immediately
       const updatedMessages = [...(currentChat.messages || []), userMessage];
-      setSelectedChat((prev) => ({
+      setSelectedChat((prev: any) => ({
         ...prev,
         messages: updatedMessages,
       }));
 
-      setChats((prevChats) =>
+      setChats((prevChats: any[]) =>
         prevChats.map((chat) =>
           chat._id === currentChat._id
             ? { ...chat, messages: updatedMessages }
@@ -306,44 +293,39 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         )
       );
 
-      // Clear image after sending
       removeImage();
 
-      // Prepare abort controller so user can stop the request
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      // Send to API (attach abort signal)
       const { data } = await axios.post(`/api/chat/${currentChat._id}`, {
         message: prompt.trim(),
         image: imagePreview,
       }, { signal: controller.signal });
 
       if (data.success) {
-        const aiMessage = {
+        const aiMessage: any = {
           role: 'assistant',
           content: data.message,
           timestamp: Date.now(),
         };
 
-        // Add AI response with typing effect
         const words = data.message.split(' ');
         let displayContent = '';
 
         for (let i = 0; i < words.length; i++) {
           const timeoutId = setTimeout(() => {
-            // Check if typing should continue
             if (!shouldContinueTypingRef.current) {
               return;
             }
-            
+
             displayContent = words.slice(0, i + 1).join(' ');
-            
-            setSelectedChat((prev) => {
+
+            setSelectedChat((prev: any) => {
               const messagesWithoutLast = prev.messages.filter(
-                (msg, idx) => idx < prev.messages.length - 1 || msg.role !== 'assistant'
+                (msg: any, idx: number) => idx < prev.messages.length - 1 || msg.role !== 'assistant'
               );
-              
+
               return {
                 ...prev,
                 messages: [
@@ -353,27 +335,24 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
               };
             });
 
-            // Update chat list and set loading to false when typing is complete
             if (i === words.length - 1) {
-              setChats((prevChats) =>
+              setChats((prevChats: any[]) =>
                 prevChats.map((chat) =>
                   chat._id === currentChat._id
-                    ? { 
-                        ...chat, 
+                    ? {
+                        ...chat,
                         messages: [...updatedMessages, aiMessage],
                         updatedAt: new Date()
                       }
                     : chat
                 )
               );
-              // Set loading to false after typing animation completes
               setIsLoading(false);
               abortControllerRef.current = null;
-              typingTimeoutsRef.current = []; // Clear timeouts array
+              typingTimeoutsRef.current = [];
             }
           }, i * 50);
-          
-          // Store timeout ID so we can clear it if stopped
+
           typingTimeoutsRef.current.push(timeoutId);
         }
       } else {
@@ -385,14 +364,12 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
         setIsLoading(false);
         abortControllerRef.current = null;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Send prompt error:', error);
-      // If the request was cancelled by user, show a simple stopped message and don't spam toasts
       if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {
-        // Show stopped assistant message
-        const stoppedMsg = { role: 'assistant', content: 'Stopped by user.', timestamp: Date.now() };
-        setSelectedChat((prev) => ({ ...prev, messages: [...(prev.messages || []), stoppedMsg] }));
-        setChats((prevChats) => prevChats.map((chat) => chat._id === currentChat._id ? { ...chat, messages: [...(chat.messages || []), stoppedMsg] } : chat));
+        const stoppedMsg: any = { role: 'assistant', content: 'Stopped by user.', timestamp: Date.now() };
+        setSelectedChat((prev: any) => ({ ...prev, messages: [...(prev.messages || []), stoppedMsg] }));
+        setChats((prevChats: any[]) => prevChats.map((chat: any) => chat._id === selectedChat?._id ? { ...chat, messages: [...(chat.messages || []), stoppedMsg] } : chat));
       } else if (error.response?.status === 401) {
         toast.error('Please log in to send messages');
       } else if (error.response?.data?.message) {
@@ -400,33 +377,28 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       } else {
         toast.error('Failed to send message. Please try again.');
       }
-      
+
       setPrompt(promptCopy);
       if (imageCopy) {
         setImagePreview(imageCopy);
       }
-      
-      // Set loading to false on error
+
       setIsLoading(false);
       abortControllerRef.current = null;
     }
   };
 
   const handleStop = async () => {
-    // Stop typing animation immediately
     shouldContinueTypingRef.current = false;
-    
-    // Clear all pending typing timeouts
+
     typingTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
     typingTimeoutsRef.current = [];
-    
-    // Abort in-flight request and notify server
+
     try {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
 
-      // Optionally notify server to stop (best-effort, no await to avoid blocking)
       if (selectedChat?._id) {
         axios.post(`/api/chat/${selectedChat._id}`, { stop: true }).catch(() => {});
       }
@@ -443,153 +415,152 @@ const PromptBox = ({ setIsLoading, isLoading }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
       onSubmit={sendPrompt}
-      className='w-full max-w-3xl'
+      className='w-full max-w-3xl relative z-10 px-4 mb-4'
     >
-      {/* Image Preview */}
       <AnimatePresence>
         {imagePreview && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
             className='mb-3 relative inline-block'
           >
-            <img 
-              src={imagePreview} 
-              alt='Selected' 
-              className='max-h-32 rounded-xl border-2 border-blue-500/30 shadow-lg shadow-blue-500/10'
-            />
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              type='button'
-              onClick={removeImage}
-              className='absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-lg transition-colors'
-            >
-              ×
-            </motion.button>
+            <div className="p-1 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-[0_10px_30px_rgba(77,107,254,0.15)] relative">
+              <img
+                src={imagePreview}
+                alt='Selected'
+                className='max-h-32 rounded-xl object-contain'
+              />
+              <MagneticWrapper intensity={0.3} className="absolute -top-3 -right-3 z-20">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  type='button'
+                  onClick={removeImage}
+                  className='bg-red-500/90 backdrop-blur hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-colors border border-red-400/30'
+                >
+                  ×
+                </motion.button>
+              </MagneticWrapper>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div 
+      <div
         ref={promptBoxRef}
-        className={`bg-transparent p-3 px-4 rounded-[28px] transition-all ${
-          isFocused 
-            ? 'border border-gray-500/50' 
-            : 'border border-gray-700/30'
+        className={`relative p-[1px] rounded-[32px] transition-all duration-300 ${
+          isLoading ? 'animate-thinking-glow' : ''
         }`}
       >
-        <div className='flex items-center gap-2'>
+        {/* Static Focus Border */}
+        {!isLoading && (
+          <div className={`absolute inset-0 rounded-[32px] transition-colors duration-300 ${
+            (isFocused || prompt || selectedImage) ? 'border border-blue-500/50 shadow-[0_0_15px_rgba(77,107,254,0.15)]' : 'border border-white/10'
+          }`} style={{ zIndex: -1 }} />
+        )}
+
+        <div className='relative bg-[#050505]/80 backdrop-blur-2xl rounded-[31px] w-full p-2 pl-6 flex items-center gap-3 shadow-[0_4px_30px_rgba(0,0,0,0.5)]'>
           {isListening && (
-            <div className='flex items-center gap-1'>
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className='w-2 h-2 bg-gray-400 rounded-full'
-              />
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-                className='w-2 h-2 bg-gray-400 rounded-full'
-              />
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-                className='w-2 h-2 bg-gray-400 rounded-full'
-              />
+            <div className='flex items-center gap-1.5'>
+              <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1, repeat: Infinity }} className='w-2 h-2 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(77,107,254,0.5)]' />
+              <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1, repeat: Infinity, delay: 0.2 }} className='w-2 h-2 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(77,107,254,0.5)]' />
+              <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1, repeat: Infinity, delay: 0.4 }} className='w-2 h-2 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(77,107,254,0.5)]' />
             </div>
           )}
           <textarea
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            className="outline-none w-full resize-none overflow-hidden break-words bg-transparent text-gray-100 placeholder-gray-500 font-sans text-base"
-            style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
+            className="flex-1 outline-none resize-none overflow-hidden break-words bg-transparent text-gray-100 placeholder-gray-500/70 font-sans text-[15px] max-h-32 leading-relaxed"
+            style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif' }}
             rows={1}
             placeholder={isListening ? "Listening..." : "Message DeepChat..."}
-            onChange={(e) => setPrompt(e.target.value)}
-            onInput={(e) => setPrompt(e.target.value)}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+            }}
+            onInput={(e) => {
+              setPrompt((e.target as HTMLTextAreaElement).value);
+            }}
             value={prompt}
             disabled={isLoading}
           />
 
-          {/* Right side buttons - Always show Mic, plus Send or Stop */}
-          <div className="flex items-center gap-2 ml-2">
-            {/* Mic button - always visible */}
-            <button
-              ref={micButtonRef}
-              type="button"
-              onClick={toggleVoiceRecognition}
-              className={`rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0 ${
-                isListening 
-                  ? 'bg-gray-600/50 hover:bg-gray-600/70' 
-                  : 'hover:bg-gray-700/50'
-              }`}
-              title={isListening ? 'Stop recording' : 'Voice input'}
-            >
-              <svg className='w-4 h-4 text-gray-400' fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-            </button>
-
-            {/* Send or Stop button - always visible */}
-            {isLoading ? (
-              // Stop button - when AI is responding
-              <button
-                ref={stopButtonRef}
-                type="button"
-                onClick={handleStop}
-                className="bg-white hover:bg-gray-200 rounded-full p-2.5 cursor-pointer transition shadow-lg flex-shrink-0"
-                title="Stop generating"
-              >
-                <div className="w-3.5 h-3.5 bg-black rounded-full"></div>
-              </button>
-            ) : (
-              // Send button - always visible as default
-              <button
-                ref={sendButtonRef}
-                type="submit"
-                disabled={isLoading || (!prompt.trim() && !selectedImage)}
-                className={`rounded-full p-2.5 cursor-pointer transition-all flex-shrink-0 ${
-                  (prompt.trim() || selectedImage)
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30'
-                    : 'bg-gray-700/50 opacity-50 cursor-not-allowed'
-                }`}
-                title={(prompt.trim() || selectedImage) ? 'Send message' : 'Type a message'}
-              >
-                <Image
-                  style={{ height: 'auto' }}
-                  className="w-4 aspect-square"
-                  src={assets.arrow_icon}
-                  alt="Send"
+          <div className="flex items-center gap-1.5 pr-2">
+            <MagneticWrapper intensity={0.2} radius={30}>
+              <div className="relative">
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='image/*'
+                  onChange={handleImageSelect}
+                  className='hidden'
+                  id='image-upload'
                 />
-              </button>
-            )}
-          </div>
-        </div>
+                <label
+                  htmlFor='image-upload'
+                  className='flex items-center justify-center w-10 h-10 rounded-full cursor-pointer hover:bg-white/10 text-gray-400 hover:text-white transition-all'
+                  title='Upload image'
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </label>
+              </div>
+            </MagneticWrapper>
 
-        <div className="flex items-center justify-between text-sm mt-2">
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type='file'
-              accept='image/*'
-              onChange={handleImageSelect}
-              className='hidden'
-              id='image-upload'
-            />
-            <motion.label
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              htmlFor='image-upload'
-              className='flex items-center justify-center w-8 h-8 rounded-full cursor-pointer hover:bg-gray-700/50 transition-all'
-              title='Upload image'
-            >
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </motion.label>
+            <MagneticWrapper intensity={0.2} radius={30}>
+              <button
+                ref={micButtonRef}
+                type="button"
+                onClick={toggleVoiceRecognition}
+                className={`flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-all ${
+                  isListening
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'hover:bg-white/10 text-gray-400 hover:text-white'
+                }`}
+                title={isListening ? 'Stop recording' : 'Voice input'}
+              >
+                <svg className='w-5 h-5' fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={isListening ? 2.5 : 2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </button>
+            </MagneticWrapper>
+
+            <MagneticWrapper intensity={0.25} radius={40}>
+              {isLoading ? (
+                <button
+                  ref={stopButtonRef}
+                  type="button"
+                  onClick={handleStop}
+                  className="flex items-center justify-center w-10 h-10 bg-white hover:bg-gray-200 rounded-full cursor-pointer transition shadow-[0_0_15px_rgba(255,255,255,0.3)]"
+                  title="Stop generating"
+                >
+                  <div className="w-3.5 h-3.5 bg-black rounded-sm"></div>
+                </button>
+              ) : (
+                <button
+                  ref={sendButtonRef}
+                  type="submit"
+                  disabled={isLoading || (!prompt.trim() && !selectedImage)}
+                  className={`flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-all ${
+                    (prompt.trim() || selectedImage)
+                      ? 'bg-gradient-to-tr from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(77,107,254,0.4)]'
+                      : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={(prompt.trim() || selectedImage) ? 'Send message' : 'Type a message'}
+                >
+                  <Image
+                    style={{ height: 'auto' }}
+                    className={`w-4 aspect-square ${(prompt.trim() || selectedImage) ? '' : 'opacity-50 grayscale'}`}
+                    src={assets.arrow_icon}
+                    alt="Send"
+                  />
+                </button>
+              )}
+            </MagneticWrapper>
           </div>
         </div>
       </div>
