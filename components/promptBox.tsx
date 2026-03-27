@@ -426,9 +426,11 @@ const PromptBox = ({ setIsLoading, isLoading }: PromptBoxProps) => {
             className='mb-3 relative inline-block'
           >
             <div className="p-1 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-[0_10px_30px_rgba(77,107,254,0.15)] relative">
-              <img
+              <Image
                 src={imagePreview}
                 alt='Selected'
+                width={128}
+                height={128}
                 className='max-h-32 rounded-xl object-contain'
               />
               <MagneticWrapper intensity={0.3} className="absolute -top-3 -right-3 z-20">

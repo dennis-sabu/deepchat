@@ -46,6 +46,7 @@ export default function Home() {
       }
     };
     initializeChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const scrollToBottom = () => {
@@ -68,6 +69,7 @@ export default function Home() {
 
   useEffect(() => {
     scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChat?.messages, userHasScrolled]);
 
   useEffect(() => {

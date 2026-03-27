@@ -95,7 +95,7 @@ const Message = ({ role, content, image, isLoading }: MessageProps) => {
             <div className='text-gray-200'>
               {image && (
                 <div className='p-1 bg-white/[0.03] rounded-xl border border-white/[0.06] mb-2 inline-block'>
-                  <img src={image} alt='Uploaded' className='max-w-full max-h-64 rounded-lg' />
+                  <Image src={image} alt='Uploaded' width={256} height={256} className='max-w-full max-h-64 rounded-lg' />
                 </div>
               )}
               <span className='whitespace-pre-wrap break-words text-[15px] leading-relaxed'>{content}</span>
